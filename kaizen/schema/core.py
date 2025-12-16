@@ -24,11 +24,3 @@ class RecordedEntity(Entity):
     """A statement about a person, place, or thing."""
     id: str = Field(description='The unique ID of an entity.')
     created_at: datetime = Field(description='The date and time the entity was created.')
-
-class Message(BaseModel):
-    """A message in a chat log."""
-    role: str = Field(
-        description='The perspective from which the message is coming from. '
-                    'This can include but is not limited to the system, the assistant, the user, or a human.'
-    )
-    content: str = Field(description='The actual message.')

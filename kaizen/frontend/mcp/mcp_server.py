@@ -56,7 +56,7 @@ def get_guidelines(task: str) -> str:
 @mcp.tool()
 def save_trajectory(trajectory_data: str, task_id: str | None = None) -> list[RecordedEntity]:
     """
-    Save the full agent trajectory to a local file.
+    Save the full agent trajectory to the Kata DB and generate tips
 
     Args:
         trajectory_data: A JSON formatted OpenAI conversation.
