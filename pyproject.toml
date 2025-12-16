@@ -1,0 +1,30 @@
+[project]
+name = "kaizen"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp",
+    "jinja2",
+    "litellm",
+    "pydantic",
+    "pymilvus[milvus-lite]",
+    "sentence-transformers"
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "anyio"
+]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+markers = [
+    "e2e",
+    "unit",
+]
+anyio_mode = "auto"
