@@ -13,7 +13,7 @@ def generate_tips(messages: list[dict]) -> list[str]:
     response = completion(
         model=llm_settings.tips_model,
         messages=[{"role": "user", "content": prompt}],
-        custom_llm_provider="openai"
+        custom_llm_provider=llm_settings.custom_llm_provider
     ).choices[0].message.content
     clean_response = clean_llm_response(response)
     return json.loads(clean_response)
