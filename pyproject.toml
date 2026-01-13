@@ -16,8 +16,15 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest",
-    "anyio"
+    "anyio",
+    "detect-secrets"
 ]
+
+[tool.uv.sources]
+detect-secrets = { git = "https://github.com/ibm/detect-secrets", branch="master"}
+
+[tool.setuptools.packages.find]
+include = ["kaizen"]
 
 [tool.uv]
 package = true
