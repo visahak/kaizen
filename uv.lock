@@ -1106,6 +1106,7 @@ dev = [
     { name = "anyio" },
     { name = "detect-secrets" },
     { name = "pytest" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -1123,6 +1124,7 @@ dev = [
     { name = "anyio" },
     { name = "detect-secrets", git = "https://github.com/ibm/detect-secrets?branch=master" },
     { name = "pytest" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
 ]
 
 [[package]]

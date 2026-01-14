@@ -32,6 +32,21 @@ Kaizen uses environment variables for configuration. You can set these in a `.en
 export OPENAI_API_KEY=sk-...
 ```
 
+**Custom LLM Configuration**
+
+Kaizen uses [LiteLLM](https://docs.litellm.ai/) and supports using a LiteLLM proxy server for centralized LLM access:
+
+```bash
+# LiteLLM Proxy Configuration
+OPENAI_API_KEY="your-proxy-token"
+OPENAI_BASE_URL="https://your-litellm-proxy.com"
+
+# Kaizen Model Configuration
+KAIZEN_TIPS_MODEL="your-model-name"
+KAIZEN_CONFLICT_RESOLUTION_MODEL="your-model-name"
+KAIZEN_CUSTOM_LLM_PROVIDER="your-custom-llm-provider"
+```
+
 **Kaizen Configuration:**
 
 All configuration variables are prefixed with `KAIZEN_`.
@@ -40,6 +55,7 @@ All configuration variables are prefixed with `KAIZEN_`.
 |----------|-------------|---------|
 | `KAIZEN_TIPS_MODEL` | Model for generating tips | `openai/gpt-4o` |
 | `KAIZEN_CONFLICT_RESOLUTION_MODEL` | Model for resolving conflicts | `openai/gpt-4o` |
+| `KAIZEN_CUSTOM_LLM_PROVIDER` | LiteLLM provider (use `openai` for proxy with custom models) | `openai` |
 | `KAIZEN_URI` | Milvus URI (file path for Lite) | `katas.milvus.db` |
 | `KAIZEN_USER` | Milvus user (optional) | `""` |
 | `KAIZEN_PASSWORD` | Milvus password (optional) | `""` |
