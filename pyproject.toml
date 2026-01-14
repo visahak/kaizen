@@ -26,6 +26,8 @@ dev = [
 detect-secrets = { git = "https://github.com/ibm/detect-secrets", branch="master"}
 
 [tool.setuptools.packages.find]
+where = ["."]
+exclude = ["explorations*"]
 include = ["kaizen"]
 
 [tool.uv]
