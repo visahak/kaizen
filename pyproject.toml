@@ -18,7 +18,8 @@ dev = [
     "pytest",
     "anyio",
     "python-dotenv>=1.2.1",
-    "detect-secrets"
+    "detect-secrets",
+    "pre-commit"
 ]
 
 [tool.uv.sources]
@@ -29,10 +30,6 @@ include = ["kaizen"]
 
 [tool.uv]
 package = true
-
-[tool.setuptools.packages.find]
-where = ["."]
-exclude = ["explorations*"]
 
 [tool.pytest.ini_options]
 addopts = "--ignore=explorations"
