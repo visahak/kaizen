@@ -4,19 +4,19 @@ from kaizen.schema.conflict_resolution import EntityUpdate
 from kaizen.config.kaizen import KaizenConfig
 
 class KaizenClient:
-    """Wrapper client around kaizen kata backends."""
+    """Wrapper client around kaizen entity backends."""
 
     def __init__(self, config: KaizenConfig | None = None):
         """Initialize the Kaizen client."""
         self.config = config or KaizenConfig()
         if self.config.backend == 'milvus':
-            from kaizen.backend.milvus import MilvusKataBackend
-            self.backend = MilvusKataBackend(self.config.settings)
+            from kaizen.backend.milvus import MilvusEntityBackend
+            self.backend = MilvusEntityBackend(self.config.settings)
         elif self.config.backend == 'filesystem':
-            from kaizen.backend.filesystem import FilesystemKataBackend
-            self.backend = FilesystemKataBackend(self.config.settings)
+            from kaizen.backend.filesystem import FilesystemEntityBackend
+            self.backend = FilesystemEntityBackend(self.config.settings)
         else:
-            raise NotImplementedError(f'Kata backend not implemented: {self.config.backend}')
+            raise NotImplementedError(f'Entity backend not implemented: {self.config.backend}')
 
     def ready(self) -> bool:
         """Check if the backend is healthy."""

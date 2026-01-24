@@ -23,7 +23,7 @@ sqlite3.register_converter("timestamp", convert_timestamp)
 
 class SQLiteManager:
     """A database for any resources that can't be generalized across backends."""
-    def __init__(self, db_path: str = 'katas.sqlite.db'):
+    def __init__(self, db_path: str = 'entities.sqlite.db'):
         self.db_path = db_path
 
     def _create_namespace_table(self):
