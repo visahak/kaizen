@@ -98,6 +98,23 @@ class PhoenixSync:
         except NamespaceNotFoundException:
             return set()
 
+    def _format_payload_summary(self, payload: Any) -> str:
+        """Format a payload summary for secure logging (avoid PII)."""
+        type_name = type(payload).__name__
+        
+        if isinstance(payload, str):
+            length = len(payload)
+            preview = payload[:50] + "..." if length > 50 else payload
+            # Replace newlines in preview to keep logs on one line
+            preview = preview.replace("\n", "\\n")
+            return f"<{type_name} length={length} preview='{preview}'>"
+            
+        if isinstance(payload, (dict, list)):
+            length = len(payload)
+            return f"<{type_name} length={length}>"
+            
+        return f"<{type_name}>"
+
     def _parse_content(self, content: Any) -> Any:
         """Parse content which may be a string representation of a list/dict."""
         if isinstance(content, str):
@@ -133,7 +150,7 @@ class PhoenixSync:
                     elif isinstance(parsed_input, list): # rare but possible
                         input_msgs = parsed_input
                 except Exception as e:
-                    logger.debug(f"Failed to parse input.value: {e}. Payload: {input_val}")
+                    logger.debug(f"Failed to parse input.value: {e}. Payload: {self._format_payload_summary(input_val)}")
 
         if input_msgs:
             # Handle OpenInference format
@@ -149,7 +166,7 @@ class PhoenixSync:
                          try:
                              msg = self._parse_content(msg)
                          except Exception as e:
-                             logger.debug(f"Failed to parse input message string: {e}. Payload: {msg}")
+                             logger.debug(f"Failed to parse input message string: {e}. Payload: {self._format_payload_summary(msg)}")
                      
                      if not isinstance(msg, dict):
                          continue
@@ -184,7 +201,7 @@ class PhoenixSync:
                           output_msgs = [{"role": "assistant", "content": output_val}]
                           #pass 
                  except Exception as e:
-                     logger.debug(f"Failed to parse output.value: {e}. Payload: {output_val}")
+                     logger.debug(f"Failed to parse output.value: {e}. Payload: {self._format_payload_summary(output_val)}")
 
         if output_msgs:
              if isinstance(output_msgs, str):
@@ -196,7 +213,7 @@ class PhoenixSync:
                          try:
                              msg = self._parse_content(msg)
                          except Exception as e:
-                             logger.debug(f"Failed to parse output message string: {e}. Payload: {msg}")
+                             logger.debug(f"Failed to parse output message string: {e}. Payload: {self._format_payload_summary(msg)}")
                      
                      if not isinstance(msg, dict):
                          continue
