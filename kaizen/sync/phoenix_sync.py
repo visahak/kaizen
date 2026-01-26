@@ -379,9 +379,9 @@ class PhoenixSync:
             "timestamp": span.get("start_time"),
             "messages": openai_messages,
             "usage": {
-                "prompt_tokens": attrs.get("gen_ai.usage.prompt_tokens") or attrs.get("llm.token_count.prompt") or attrs.get("llm.usage.prompt_tokens"),
-                "completion_tokens": attrs.get("gen_ai.usage.completion_tokens") or attrs.get("llm.token_count.completion") or attrs.get("llm.usage.completion_tokens"),
-                "total_tokens": attrs.get("gen_ai.usage.total_tokens") or attrs.get("llm.token_count.total") or attrs.get("llm.usage.total_tokens"),
+                "prompt_tokens": next((v for v in [attrs.get("gen_ai.usage.prompt_tokens"), attrs.get("llm.token_count.prompt"), attrs.get("llm.usage.prompt_tokens")] if v is not None), None),
+                "completion_tokens": next((v for v in [attrs.get("gen_ai.usage.completion_tokens"), attrs.get("llm.token_count.completion"), attrs.get("llm.usage.completion_tokens")] if v is not None), None),
+                "total_tokens": next((v for v in [attrs.get("gen_ai.usage.total_tokens"), attrs.get("llm.token_count.total"), attrs.get("llm.usage.total_tokens")] if v is not None), None),
             },
         }
 
