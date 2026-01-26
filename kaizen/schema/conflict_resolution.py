@@ -14,7 +14,7 @@ class SimpleEntity(BaseModel):
 
 
 class EntityUpdate(BaseModel):
-    """Produced by the LLM, to be processed by a kata backend."""
+    """Produced by the LLM, to be processed by a entity backend."""
     id: str = Field(description='The unique ID of an entity.')
     type: str = Field(description='The type of the entity.')
     content: str | list | dict = Field(description='The content of the entity.')

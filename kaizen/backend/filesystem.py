@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from threading import Lock
 
-from kaizen.backend.base import BaseKataBackend
+from kaizen.backend.base import BaseEntityBackend
 from kaizen.config.filesystem import filesystem_settings
 from kaizen.llm.conflict_resolution.conflict_resolution import resolve_conflicts
 from kaizen.schema.conflict_resolution import EntityUpdate
@@ -17,10 +17,10 @@ from kaizen.schema.exceptions import (
 )
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("katas-db.filesystem")
+logger = logging.getLogger("entities-db.filesystem")
 
 
-class FilesystemKataBackend(BaseKataBackend):
+class FilesystemEntityBackend(BaseEntityBackend):
     """A filesystem-based backend that stores data in JSON files.
 
     This backend uses simple text matching for search (no embeddings).

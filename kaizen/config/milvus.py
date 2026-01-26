@@ -4,7 +4,7 @@ from pydantic import Field
 
 class MilvusDBSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='KAIZEN_')
-    uri: str = Field(default='katas.milvus.db')
+    uri: str = Field(default='entities.milvus.db')
     user: str = Field(default='')
     password: str = Field(default='')
     db_name: str = Field(default='')

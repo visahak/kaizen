@@ -5,10 +5,10 @@ from kaizen.schema.core import Namespace, Entity, RecordedEntity
 from kaizen.schema.conflict_resolution import EntityUpdate
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("katas-db")
+logger = logging.getLogger("entities-db")
 
 
-class BaseKataBackend(ABC):
+class BaseEntityBackend(ABC):
     def __init__(self, config: BaseSettings | None = None):
         pass
 

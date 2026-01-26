@@ -98,6 +98,23 @@ class PhoenixSync:
         except NamespaceNotFoundException:
             return set()
 
+    def _format_payload_summary(self, payload: Any) -> str:
+        """Format a payload summary for secure logging (avoid PII)."""
+        type_name = type(payload).__name__
+        
+        if isinstance(payload, str):
+            length = len(payload)
+            preview = payload[:50] + "..." if length > 50 else payload
+            # Replace newlines in preview to keep logs on one line
+            preview = preview.replace("\n", "\\n")
+            return f"<{type_name} length={length} preview='{preview}'>"
+            
+        if isinstance(payload, (dict, list)):
+            length = len(payload)
+            return f"<{type_name} length={length}>"
+            
+        return f"<{type_name}>"
+
     def _parse_content(self, content: Any) -> Any:
         """Parse content which may be a string representation of a list/dict."""
         if isinstance(content, str):
@@ -132,8 +149,8 @@ class PhoenixSync:
                         input_msgs = parsed_input["messages"]
                     elif isinstance(parsed_input, list): # rare but possible
                         input_msgs = parsed_input
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to parse input.value: {e}. Payload: {self._format_payload_summary(input_val)}")
 
         if input_msgs:
             # Handle OpenInference format
@@ -145,6 +162,14 @@ class PhoenixSync:
                 for i, msg in enumerate(input_msgs):
                      # OpenInference often uses message.role / message.content keys in flattened export
                      # but via API it might be cleaner. Let's handle dict access safely.
+                     if isinstance(msg, str):
+                         try:
+                             msg = self._parse_content(msg)
+                         except Exception as e:
+                             logger.debug(f"Failed to parse input message string: {e}. Payload: {self._format_payload_summary(msg)}")
+                     
+                     if not isinstance(msg, dict):
+                         continue
                      role = msg.get("message.role") or msg.get("role")
                      content = msg.get("message.content") or msg.get("content")
                      tool_calls = msg.get("message.tool_calls") or msg.get("tool_calls")
@@ -173,10 +198,10 @@ class PhoenixSync:
                           output_msgs = [c["message"] for c in parsed_output["choices"]]
                      else:
                           # Fallback for simple string output
-                          # output_msgs = [{"role": "assistant", "content": output_val}]
-                          pass 
-                 except:
-                     pass
+                          output_msgs = [{"role": "assistant", "content": output_val}]
+                          #pass 
+                 except Exception as e:
+                     logger.debug(f"Failed to parse output.value: {e}. Payload: {self._format_payload_summary(output_val)}")
 
         if output_msgs:
              if isinstance(output_msgs, str):
@@ -184,6 +209,14 @@ class PhoenixSync:
              
              if isinstance(output_msgs, list):
                 for i, msg in enumerate(output_msgs):
+                     if isinstance(msg, str):
+                         try:
+                             msg = self._parse_content(msg)
+                         except Exception as e:
+                             logger.debug(f"Failed to parse output message string: {e}. Payload: {self._format_payload_summary(msg)}")
+                     
+                     if not isinstance(msg, dict):
+                         continue
                      role = msg.get("message.role") or msg.get("role")
                      content = msg.get("message.content") or msg.get("content")
                      tool_calls = msg.get("message.tool_calls") or msg.get("tool_calls")
@@ -346,9 +379,9 @@ class PhoenixSync:
             "timestamp": span.get("start_time"),
             "messages": openai_messages,
             "usage": {
-                "prompt_tokens": attrs.get("gen_ai.usage.prompt_tokens") or attrs.get("llm.token_count.prompt"),
-                "completion_tokens": attrs.get("gen_ai.usage.completion_tokens") or attrs.get("llm.token_count.completion"),
-                "total_tokens": attrs.get("llm.usage.total_tokens") or attrs.get("llm.token_count.total"),
+                "prompt_tokens": next((v for v in [attrs.get("gen_ai.usage.prompt_tokens"), attrs.get("llm.token_count.prompt"), attrs.get("llm.usage.prompt_tokens")] if v is not None), None),
+                "completion_tokens": next((v for v in [attrs.get("gen_ai.usage.completion_tokens"), attrs.get("llm.token_count.completion"), attrs.get("llm.usage.completion_tokens")] if v is not None), None),
+                "total_tokens": next((v for v in [attrs.get("gen_ai.usage.total_tokens"), attrs.get("llm.token_count.total"), attrs.get("llm.usage.total_tokens")] if v is not None), None),
             },
         }
 
@@ -503,7 +536,7 @@ class PhoenixSync:
                     )
             except Exception as e:
                 error_msg = f"Error processing span {span_id}: {e}"
-                logger.error(error_msg)
+                logger.exception(error_msg) 
                 errors.append(error_msg)
 
         result = SyncResult(
