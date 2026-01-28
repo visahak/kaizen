@@ -70,6 +70,8 @@ export KAIZEN_TRACING_ENDPOINT=http://localhost:6006/v1/traces  # Optional
 
 ## Example: Simple OpenAI Script
 
+Use this when you are tracing **raw API calls** directly using the `openai` library. Kaizen will capture the individual inputs and outputs of the LLM.
+
 ```python
 try:
     import kaizen.auto
@@ -89,6 +91,8 @@ print(response.choices[0].message.content)
 ---
 
 ## Example: LiteLLM (Multi-Provider)
+
+Use this when using **LiteLLM** to abstract across multiple providers. Kaizen traces the unified call interface.
 
 ```python
 try:
@@ -117,6 +121,8 @@ response = litellm.completion(
 
 ## Example: Smolagents (HuggingFace)
 
+Use this for **agentic workflows** built with HuggingFace's `smolagents`. Kaizen traces the agent's steps, tool calls, and final answers.
+
 ```python
 try:
     import kaizen.auto
@@ -136,6 +142,8 @@ print(result)
 ---
 
 ## Example: OpenAI Agents SDK
+
+Use this for the **OpenAI Agents framework** (`agents`). Kaizen traces the high-level agent lifecycle, including runs, turns, and tool executions.
 
 ```python
 try:
