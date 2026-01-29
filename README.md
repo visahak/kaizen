@@ -52,6 +52,8 @@ npx @modelcontextprotocol/inspector@latest http://127.0.0.1:8201/sse --cli --met
 **Available tools:**
 - `get_guidelines(task: str)`: Get relevant guidelines for a specific task.
 - `save_trajectory(trajectory_data: str, task_id: str | None)`: Save a conversation trajectory and generate new tips.
+- `create_entity(content: str, entity_type: str, metadata: str | None, enable_conflict_resolution: bool)`: Create a single entity in the namespace.
+- `delete_entity(entity_id: str)`: Delete a specific entity by its ID.
 
 ## Documentation
 

@@ -5,6 +5,9 @@ from fastmcp.client import Client
 from pathlib import Path
 from dotenv import load_dotenv
 
+import uuid
+from kaizen.config.milvus import milvus_client_settings
+
 __data__ = Path(__file__).parent.parent / 'data'
 load_dotenv()
 
@@ -15,12 +18,71 @@ def mcp():
     from kaizen.config.kaizen import kaizen_config
     # we change the namespace ID for these tests so we have to reset the loaded settings
     kaizen_config.__init__()
+    
+    # Use a unique DB file for each test to avoid socket/locking issues
+    # Milvus Lite has a 36 character limit on DB filenames
+    db_file = f"test_{uuid.uuid4().hex[:8]}.db"
+    original_uri = milvus_client_settings.uri
+    milvus_client_settings.uri = db_file
+    
+    # Reset the MCP server client to ensure it uses the new DB file
+    import kaizen.frontend.mcp.mcp_server as mcp_server_module
+    mcp_server_module._client = None
+    
     kaizen_client = KaizenClient()
-    # ensure clean test environment
-    kaizen_client.delete_namespace('test')
-    from kaizen.frontend.mcp.mcp_server import mcp
-    yield mcp
-    kaizen_client.delete_namespace('test')
+    # Create the test namespace
+    try:
+        kaizen_client.create_namespace('test')
+    except Exception:
+        pass
+    
+    yield mcp_server_module.mcp
+    
+    # Cleanup - close the backend connection properly
+    try:
+        kaizen_client.backend.close()
+    except Exception:
+        pass
+    
+    # Disconnect all pymilvus connections to ensure clean state for next test
+    try:
+        from pymilvus import connections
+        for alias, _ in connections.list_connections():
+            try:
+                connections.disconnect(alias)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    # Release all Milvus Lite servers to fully clean up between tests
+    try:
+        from milvus_lite.server_manager import server_manager_instance
+        server_manager_instance.release_all()
+    except Exception:
+        pass
+    
+    # Reset the MCP server client
+    mcp_server_module._client = None
+    
+    # Restore original URI
+    milvus_client_settings.uri = original_uri
+    
+    # Clean up temp DB files
+    if os.path.exists(db_file):
+        try:
+            os.remove(db_file)
+        except Exception:
+            pass
+    if os.path.exists(f"{db_file}.lock"):
+        try:
+            os.remove(f"{db_file}.lock")
+        except Exception:
+            pass
+
+
+
+
 
 @pytest.mark.e2e
 async def test_save_trajectory_and_retrieve_guidelines(mcp):
@@ -38,3 +100,202 @@ async def test_save_trajectory_and_retrieve_guidelines(mcp):
         })
         guidelines = response.content[0].text
         assert '# Guidelines for: ' in guidelines
+
+
+@pytest.mark.e2e
+async def test_create_entity_without_conflict_resolution(mcp):
+    """Test creating a single entity without conflict resolution."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        response = await kaizen_mcp.call_tool_mcp('create_entity', {
+            'content': 'Always use type hints in Python functions',
+            'entity_type': 'guideline',
+            'metadata': json.dumps({
+                'category': 'code_quality',
+                'language': 'python'
+            }),
+            'enable_conflict_resolution': False
+        })
+        
+        result = json.loads(response.content[0].text)
+        
+        # Verify entity was created (ADD event)
+        assert result['event'] == 'ADD'
+        assert 'id' in result
+        assert result['type'] == 'guideline'
+        assert result['content'] == 'Always use type hints in Python functions'
+        assert result['metadata']['category'] == 'code_quality'
+
+
+@pytest.mark.e2e
+async def test_create_entity_with_conflict_resolution(mcp):
+    """Test creating an entity with conflict resolution enabled."""
+    from unittest.mock import patch
+    from kaizen.schema.conflict_resolution import EntityUpdate
+    
+    async with Client(transport=mcp) as kaizen_mcp:
+        # Create first entity
+        response1 = await kaizen_mcp.call_tool_mcp('create_entity', {
+            'content': 'Use descriptive variable names',
+            'entity_type': 'guideline',
+            'enable_conflict_resolution': False
+        })
+        result1 = json.loads(response1.content[0].text)
+        assert result1['event'] == 'ADD'
+        first_entity_id = result1['id']
+        
+        # Mock resolve_conflicts to avoid LLM call timeout
+        with patch('kaizen.backend.milvus.resolve_conflicts') as mock_resolve:
+            # Configure mock to return an UPDATE event
+            mock_resolve.return_value = [
+                EntityUpdate(
+                    id=str(first_entity_id),
+                    type='guideline',
+                    content='Always use descriptive variable names',
+                    event='UPDATE',
+                    metadata={}
+                )
+            ]
+            
+            # Create similar entity with conflict resolution
+            response2 = await kaizen_mcp.call_tool_mcp('create_entity', {
+                'content': 'Always use descriptive variable names',
+                'entity_type': 'guideline',
+                'enable_conflict_resolution': True
+            })
+            result2 = json.loads(response2.content[0].text)
+            
+            # Should return what our mock returned
+            assert result2['event'] == 'UPDATE'
+            assert result2['id'] == str(first_entity_id)
+
+
+@pytest.mark.e2e
+async def test_create_entity_without_metadata(mcp):
+    """Test creating an entity without optional metadata."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        response = await kaizen_mcp.call_tool_mcp('create_entity', {
+            'content': 'Simple entity without metadata',
+            'entity_type': 'note',
+            'enable_conflict_resolution': False
+        })
+        
+        result = json.loads(response.content[0].text)
+        
+        # Verify entity was created
+        assert result['event'] == 'ADD'
+        assert 'id' in result
+        assert result['type'] == 'note'
+        assert result['content'] == 'Simple entity without metadata'
+
+
+@pytest.mark.e2e
+async def test_delete_entity(mcp):
+    """Test deleting an entity via MCP."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        # Create an entity
+        create_response = await kaizen_mcp.call_tool_mcp('create_entity', {
+            'content': 'Temporary test entity',
+            'entity_type': 'test',
+            'metadata': json.dumps({'temp': True}),
+            'enable_conflict_resolution': False
+        })
+        
+        created_entity = json.loads(create_response.content[0].text)
+        entity_id = created_entity['id']
+        
+        # Delete the entity
+        delete_response = await kaizen_mcp.call_tool_mcp('delete_entity', {
+            'entity_id': entity_id
+        })
+        
+        result = json.loads(delete_response.content[0].text)
+        
+        # Verify deletion was successful
+        assert result['success'] is True
+        assert entity_id in result['message']
+
+
+@pytest.mark.e2e
+async def test_delete_nonexistent_entity(mcp):
+    """Test deleting an entity that doesn't exist."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        # Use a numeric ID that doesn't exist (entity IDs are integers)
+        delete_response = await kaizen_mcp.call_tool_mcp('delete_entity', {
+            'entity_id': '99999999'
+        })
+        
+        result = json.loads(delete_response.content[0].text)
+        
+        # Should return an error since entity doesn't exist
+        assert result['success'] is False
+        assert 'error' in result
+
+
+@pytest.mark.e2e
+async def test_create_and_delete_workflow(mcp):
+    """Test complete workflow: create then delete."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        # Create entity
+        create_response = await kaizen_mcp.call_tool_mcp('create_entity', {
+            'content': 'Workflow test entity',
+            'entity_type': 'test',
+            'metadata': json.dumps({'workflow': 'test'}),
+            'enable_conflict_resolution': False
+        })
+        created = json.loads(create_response.content[0].text)
+        entity_id = created['id']
+        assert created['event'] == 'ADD'
+        
+        # Delete entity
+        delete_response = await kaizen_mcp.call_tool_mcp('delete_entity', {
+            'entity_id': entity_id
+        })
+        delete_result = json.loads(delete_response.content[0].text)
+        assert delete_result['success'] is True
+
+
+@pytest.mark.e2e
+async def test_create_multiple_entities_same_type(mcp):
+    """Test creating multiple entities of the same type."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        entity_ids = []
+        
+        # Create 3 entities
+        for i in range(3):
+            response = await kaizen_mcp.call_tool_mcp('create_entity', {
+                'content': f'Test guideline number {i}',
+                'entity_type': 'guideline',
+                'enable_conflict_resolution': False
+            })
+            result = json.loads(response.content[0].text)
+            assert result['event'] == 'ADD'
+            entity_ids.append(result['id'])
+        
+        # Verify all have unique IDs
+        assert len(set(entity_ids)) == 3
+        
+        # Clean up
+        for entity_id in entity_ids:
+            await kaizen_mcp.call_tool_mcp('delete_entity', {
+                'entity_id': entity_id
+            })
+
+
+@pytest.mark.e2e
+async def test_create_entity_with_invalid_json_metadata(mcp):
+    """Test creating an entity with invalid JSON metadata."""
+    async with Client(transport=mcp) as kaizen_mcp:
+        response = await kaizen_mcp.call_tool_mcp('create_entity', {
+            'content': 'Test entity with bad metadata',
+            'entity_type': 'test',
+            'metadata': '{invalid json here}',
+            'enable_conflict_resolution': False
+        })
+        
+        result = json.loads(response.content[0].text)
+        
+        # Should return an error
+        assert 'error' in result
+        assert result['error'] == 'Invalid metadata JSON'
+        assert 'message' in result
+        assert 'invalid_metadata' in result

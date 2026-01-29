@@ -33,8 +33,12 @@ def deserialize_content(content: str):
 
 
 class MilvusEntityBackend(BaseEntityBackend):
-    milvus = MilvusClient(**milvus_client_settings.model_dump())
-    embedding_model = SentenceTransformer(milvus_other_settings.embedding_model)
+    # Removed class attributes
+    
+    def __init__(self, config=None):
+        super().__init__(config)
+        self.milvus = MilvusClient(**milvus_client_settings.model_dump())
+        self.embedding_model = SentenceTransformer(milvus_other_settings.embedding_model)
 
     def ready(self):
         _ = self.milvus.list_collections()
@@ -143,19 +147,21 @@ class MilvusEntityBackend(BaseEntityBackend):
             updates = []
             for entity in entities:
                 content_str = serialize_content(entity.content)
+                # Convert None metadata to empty dict for Milvus compatibility
+                metadata = entity.metadata if entity.metadata is not None else {}
                 entity_id = str(self.milvus.insert(collection_name=namespace_id, data={
                     'type': entity_type,
                     'content': content_str,
                     'created_at': int(now.timestamp()),
                     'embedding': self.embedding_model.encode(content_str),
-                    'metadata': entity.metadata
+                    'metadata': metadata
                 })['ids'][0])
                 updates.append(EntityUpdate(
                     id=entity_id,
                     type=entity_type,
                     content=entity.content,
                     event='ADD',
-                    metadata=entity.metadata
+                    metadata=metadata
                 ))
         return updates
 
@@ -187,9 +193,30 @@ class MilvusEntityBackend(BaseEntityBackend):
         return [parse_milvus_entity(i) for i in results]
 
     def delete_entity_by_id(self, namespace_id: str, entity_id: str):
-        entity_id = int(entity_id)
+        try:
+            entity_id_int = int(entity_id)
+        except ValueError:
+            raise KaizenException(f"Invalid entity ID: {entity_id}. Entity IDs must be numeric.")
         self.validate_namespace(namespace_id)
-        self.milvus.delete(collection_name=namespace_id, ids=[entity_id])
+        
+        # Check if entity exists before deleting
+        existing = self.milvus.query(
+            collection_name=namespace_id,
+            filter=f"id == {entity_id_int}",
+            output_fields=["id"]
+        )
+        if not existing:
+            raise KaizenException(f"Entity with ID {entity_id} not found in namespace {namespace_id}.")
+        
+        self.milvus.delete(collection_name=namespace_id, ids=[entity_id_int])
+
+    def close(self):
+        """Close Milvus connection."""
+        try:
+            if hasattr(self, 'milvus'):
+                self.milvus.close()
+        except Exception as e:
+            logger.warning(f"Error closing Milvus client: {e}")
 
 entity_schema = CollectionSchema(fields=[
     # Keep it as an INT64 or else you won't be able to list all entities.
