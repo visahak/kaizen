@@ -5,6 +5,9 @@ from fastmcp.client import Client
 from pathlib import Path
 from dotenv import load_dotenv
 
+import uuid
+from kaizen.config.milvus import milvus_client_settings
+
 __data__ = Path(__file__).parent.parent / 'data'
 load_dotenv()
 
@@ -15,12 +18,71 @@ def mcp():
     from kaizen.config.kaizen import kaizen_config
     # we change the namespace ID for these tests so we have to reset the loaded settings
     kaizen_config.__init__()
+    
+    # Use a unique DB file for each test to avoid socket/locking issues
+    # Milvus Lite has a 36 character limit on DB filenames
+    db_file = f"test_{uuid.uuid4().hex[:8]}.db"
+    original_uri = milvus_client_settings.uri
+    milvus_client_settings.uri = db_file
+    
+    # Reset the MCP server client to ensure it uses the new DB file
+    import kaizen.frontend.mcp.mcp_server as mcp_server_module
+    mcp_server_module._client = None
+    
     kaizen_client = KaizenClient()
-    # ensure clean test environment
-    kaizen_client.delete_namespace('test')
-    from kaizen.frontend.mcp.mcp_server import mcp
-    yield mcp
-    kaizen_client.delete_namespace('test')
+    # Create the test namespace
+    try:
+        kaizen_client.create_namespace('test')
+    except Exception:
+        pass
+    
+    yield mcp_server_module.mcp
+    
+    # Cleanup - close the backend connection properly
+    try:
+        kaizen_client.backend.close()
+    except Exception:
+        pass
+    
+    # Disconnect all pymilvus connections to ensure clean state for next test
+    try:
+        from pymilvus import connections
+        for alias, _ in connections.list_connections():
+            try:
+                connections.disconnect(alias)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    # Release all Milvus Lite servers to fully clean up between tests
+    try:
+        from milvus_lite.server_manager import server_manager_instance
+        server_manager_instance.release_all()
+    except Exception:
+        pass
+    
+    # Reset the MCP server client
+    mcp_server_module._client = None
+    
+    # Restore original URI
+    milvus_client_settings.uri = original_uri
+    
+    # Clean up temp DB files
+    if os.path.exists(db_file):
+        try:
+            os.remove(db_file)
+        except Exception:
+            pass
+    if os.path.exists(f"{db_file}.lock"):
+        try:
+            os.remove(f"{db_file}.lock")
+        except Exception:
+            pass
+
+
+
+
 
 @pytest.mark.e2e
 async def test_save_trajectory_and_retrieve_guidelines(mcp):

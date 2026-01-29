@@ -19,14 +19,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("entities-mcp")
 
 mcp = FastMCP("entities")
-client = KaizenClient()
+_client = None
+
+
+def get_client() -> KaizenClient:
+    """Get or create the KaizenClient singleton.
+    
+    This lazy initialization allows tests to configure settings
+    before the client is created.
+    """
+    global _client
+    if _client is None:
+        _client = KaizenClient()
+    return _client
 
 
 def ensure_namespace():
     try:
-        client.get_namespace_details(kaizen_config.namespace_id)
+        get_client().get_namespace_details(kaizen_config.namespace_id)
     except NamespaceNotFoundException:
-        client.create_namespace(kaizen_config.namespace_id)
+        get_client().create_namespace(kaizen_config.namespace_id)
 
 
 @mcp.tool()
@@ -41,7 +53,7 @@ def get_guidelines(task: str) -> str:
     logger.info(f"Getting guidelines for task: {task}")
     ensure_namespace()
     # Get relevant guidelines
-    results = client.search_entities(
+    results = get_client().search_entities(
         namespace_id=kaizen_config.namespace_id,
         query=task,
         filters={"type": "guideline"},
@@ -85,14 +97,14 @@ def save_trajectory(
             )
         )
 
-    client.update_entities(
+    get_client().update_entities(
         namespace_id=kaizen_config.namespace_id,
         entities=entities,
         enable_conflict_resolution=False,
     )
     tips = generate_tips(messages)
 
-    client.update_entities(
+    get_client().update_entities(
         namespace_id=kaizen_config.namespace_id,
         entities=[
             Entity(
@@ -109,7 +121,7 @@ def save_trajectory(
         enable_conflict_resolution=True,
     )
 
-    return client.search_entities(
+    return get_client().search_entities(
         namespace_id=kaizen_config.namespace_id,
         filters={"type": "trajectory", "task_id": task_id},
         limit=1000,
@@ -159,7 +171,7 @@ def create_entity(
     )
     
     # Use KaizenClient.update_entities() to create the entity
-    updates = client.update_entities(
+    updates = get_client().update_entities(
         namespace_id=kaizen_config.namespace_id,
         entities=[entity],
         enable_conflict_resolution=enable_conflict_resolution
@@ -195,7 +207,7 @@ def delete_entity(entity_id: str) -> str:
     
     try:
         # Use KaizenClient.delete_entity_by_id() to delete the entity
-        client.delete_entity_by_id(
+        get_client().delete_entity_by_id(
             namespace_id=kaizen_config.namespace_id,
             entity_id=entity_id
         )
