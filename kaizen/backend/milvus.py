@@ -193,9 +193,12 @@ class MilvusEntityBackend(BaseEntityBackend):
         return [parse_milvus_entity(i) for i in results]
 
     def delete_entity_by_id(self, namespace_id: str, entity_id: str):
-        entity_id = int(entity_id)
+        try:
+            entity_id_int = int(entity_id)
+        except ValueError:
+            raise KaizenException(f"Invalid entity ID: {entity_id}. Entity IDs must be numeric.")
         self.validate_namespace(namespace_id)
-        self.milvus.delete(collection_name=namespace_id, ids=[entity_id])
+        self.milvus.delete(collection_name=namespace_id, ids=[entity_id_int])
 
     def close(self):
         """Close Milvus connection."""
