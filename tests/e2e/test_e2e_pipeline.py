@@ -1,7 +1,6 @@
 import subprocess
 import time
 import re
-import sys
 import os
 import datetime
 import pytest
@@ -36,6 +35,7 @@ AGENTS_TO_TEST = [
     }
 ]
 
+@pytest.mark.skipif(os.getenv("KAIZEN_E2E") != "true", reason="E2E tests disabled unless KAIZEN_E2E=true")
 @pytest.mark.parametrize("agent_config", AGENTS_TO_TEST, ids=[a["name"] for a in AGENTS_TO_TEST])
 def test_e2e_pipeline_agent(agent_config):
     """
@@ -52,14 +52,14 @@ def test_e2e_pipeline_agent(agent_config):
     current_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     project_name = f"{agent_config['project_prefix']}-{current_timestamp}"
     
-    print(f"\n==================================================")
+    print("\n==================================================")
     print(f" TESTING AGENT: {agent_name}")
     print(f" Script: {script_path}")
     print(f" Project: {project_name}")
-    print(f"==================================================")
+    print("==================================================")
 
     # --- Step 1: Run Agent ---
-    print(f"\n--- Step 1: Running Agent ---")
+    print("\n--- Step 1: Running Agent ---")
     start_time = time.time()
     env = os.environ.copy()
     env["KAIZEN_AUTO_ENABLED"] = "true"
@@ -122,7 +122,7 @@ except Exception as e:
         pytest.fail(f"No traces found in Phoenix project {project_name}. Debug: {output}")
 
     # --- Step 3: Sync & Generate Tips ---
-    print(f"\n--- Step 3: Running Kaizen Sync & Monitoring ---")
+    print("\n--- Step 3: Running Kaizen Sync & Monitoring ---")
     sync_command = [
         "uv", "run", "python", "-m", "kaizen.frontend.cli.cli", 
         "sync", "phoenix", 

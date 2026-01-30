@@ -223,7 +223,7 @@ Kaizen includes a comprehensive E2E verification suite to ensure that tracing an
 You can run the full regression suite using `pytest`:
 
 ```bash
-uv run pytest tests/e2e/test_e2e_pipeline.py -s
+KAIZEN_E2E=true uv run pytest tests/e2e/test_e2e_pipeline.py -s
 ```
 
 ### Running Specific Tests
@@ -232,10 +232,10 @@ To test a specific agent framework:
 
 ```bash
 # Test smolagents
-uv run pytest tests/e2e/test_e2e_pipeline.py -k smolagents -s
+KAIZEN_E2E=true uv run pytest tests/e2e/test_e2e_pipeline.py -k smolagents -s
 
 # Test OpenAI Agents
-uv run pytest tests/e2e/test_e2e_pipeline.py -k openai_agents -s
+KAIZEN_E2E=true uv run pytest tests/e2e/test_e2e_pipeline.py -k openai_agents -s
 ```
 
 ### What It Tests

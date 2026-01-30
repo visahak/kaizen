@@ -6,10 +6,10 @@ Auto-patches LLM frameworks (OpenAI, LiteLLM, Smolagents, etc.) to trace calls t
 Usage:
     # Set environment variable
     export KAIZEN_AUTO_ENABLED=true
-    
+
     # Then in code, just import:
     import kaizen.auto
-    
+
     # All LLM calls are now traced!
 
 Advanced Usage (Explicit):
@@ -37,11 +37,12 @@ _flush_registered: bool = False
 
 # --- Tracing Logic ---
 
+
 def is_already_instrumented() -> bool:
     """Check if tracing has already been set up (by Kaizen or another tool)."""
     try:
         from opentelemetry import trace
-        
+
         provider = trace.get_tracer_provider()
         # Default provider is ProxyTracerProvider (no-op)
         default_name = "ProxyTracerProvider"
@@ -53,21 +54,21 @@ def is_already_instrumented() -> bool:
 def detect_installed_frameworks() -> list[str]:
     """Detect which LLM frameworks are installed."""
     frameworks = []
-    
+
     framework_modules = {
         "openai": "openai",
-        "litellm": "litellm", 
+        "litellm": "litellm",
         "smolagents": "smolagents",
         "openai_agents": "agents",  # openai-agents package
     }
-    
+
     for name, module in framework_modules.items():
         try:
             __import__(module)
             frameworks.append(name)
         except ImportError:
             pass
-    
+
     return frameworks
 
 
@@ -79,12 +80,12 @@ def _get_instrumentor(framework: str):
         "smolagents": ("openinference.instrumentation.smolagents", "SmolagentsInstrumentor"),
         "openai_agents": ("openinference.instrumentation.openai_agents", "OpenAIAgentsInstrumentor"),
     }
-    
+
     if framework not in instrumentor_map:
         return None
-    
+
     module_name, class_name = instrumentor_map[framework]
-    
+
     try:
         module = __import__(module_name, fromlist=[class_name])
         instrumentor_class = getattr(module, class_name)
@@ -94,13 +95,13 @@ def _get_instrumentor(framework: str):
         return None
 
 
-def _register_flush_handler(tracer_provider: TracerProvider) -> None:
+def _register_flush_handler() -> None:
     """Register an atexit handler to flush traces."""
     global _flush_registered
-    
+
     if _flush_registered:
         return
-    
+
     def _flush():
         try:
             # Use global getter to avoid stale closure
@@ -109,7 +110,7 @@ def _register_flush_handler(tracer_provider: TracerProvider) -> None:
                 provider.force_flush()
         except Exception as e:
             logger.debug(f"Error flushing traces: {e}")
-    
+
     atexit.register(_flush)
     _flush_registered = True
 
@@ -123,34 +124,32 @@ def enable_tracing(
 ) -> TracerProvider | None:
     """
     Enable Phoenix tracing for detected LLM frameworks.
-    
+
     Args:
         project: Phoenix project name (default: from env or "kaizen-agent")
         endpoint: Phoenix collector endpoint (default: from env or "http://localhost:6006/v1/traces")
         frameworks: List of frameworks to instrument. If None, auto-detect.
         force: If True, instrument even if tracing is already set up.
         auto_flush: If True, register atexit handler to flush traces.
-        
+
     Returns:
         TracerProvider instance if tracing was enabled, None otherwise.
     """
     global _tracer_provider, _instrumented_frameworks
-    
+
     # Check if already instrumented
     if not force and is_already_instrumented():
         logger.info("Tracing already set up, skipping (use force=True to override)")
         return None
-    
+
     # Get configuration from environment or defaults
-    project = project or os.environ.get("KAIZEN_TRACING_PROJECT", 
-                                         os.environ.get("PHOENIX_PROJECT_NAME", "kaizen-agent"))
-    endpoint = endpoint or os.environ.get("KAIZEN_TRACING_ENDPOINT",
-                                           os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces"))
-    
+    project = project or os.environ.get("KAIZEN_TRACING_PROJECT", os.environ.get("PHOENIX_PROJECT_NAME", "kaizen-agent"))
+    endpoint = endpoint or os.environ.get("KAIZEN_TRACING_ENDPOINT", os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces"))
+
     # Initialize Phoenix tracer
     try:
         from phoenix.otel import register
-        
+
         tracer_provider = register(
             project_name=project,
             endpoint=endpoint,
@@ -158,22 +157,22 @@ def enable_tracing(
         _tracer_provider = tracer_provider
         logger.info(f"Phoenix tracing enabled: project={project}, endpoint={endpoint}")
     except ImportError as e:
-        logger.error(f"Phoenix not available: {e}. Install with: pip install arize-phoenix")
+        logger.exception(f"Phoenix not available: {e}. Install with: pip install arize-phoenix")
         return None
-    except Exception as e:
-        logger.error(f"Failed to initialize Phoenix: {e}")
+    except Exception as e:  # noqa: BLE001
+        logger.exception(f"Failed to initialize Phoenix: {e}")
         return None
-    
+
     # Detect frameworks to instrument
     if frameworks is None:
         frameworks = detect_installed_frameworks()
-    
+
     # Apply instrumentors
     instrumented = []
     for framework in frameworks:
         if framework in _instrumented_frameworks:
             continue
-            
+
         instrumentor = _get_instrumentor(framework)
         if instrumentor:
             try:
@@ -182,16 +181,16 @@ def enable_tracing(
                 instrumented.append(framework)
             except Exception as e:
                 logger.warning(f"Failed to instrument {framework}: {e}")
-    
+
     if instrumented:
         logger.info(f"Instrumented frameworks: {instrumented}")
     else:
         logger.info("No frameworks instrumented (none found or instrumentors not installed)")
-    
+
     # Register flush handler
     if auto_flush:
-        _register_flush_handler(tracer_provider)
-    
+        _register_flush_handler()
+
     return tracer_provider
 
 
@@ -213,24 +212,25 @@ def flush_traces() -> None:
 
 # --- Auto Setup Logic ---
 
+
 def _auto_setup() -> None:
     """Automatically set up tracing if KAIZEN_AUTO_ENABLED is true."""
     # Check if auto mode is enabled
     enabled = os.environ.get("KAIZEN_AUTO_ENABLED", "").lower() in ("true", "1", "yes")
-    
+
     if not enabled:
         logger.debug("KAIZEN_AUTO_ENABLED not set, skipping auto-instrumentation")
         return
-    
+
     # Check for existing instrumentation
     if is_already_instrumented():
         logger.info("[kaizen.auto] Existing tracer detected, skipping")
         print("[kaizen.auto] Existing tracer detected, skipping")
         return
-    
+
     # Enable tracing
     tracer = enable_tracing()
-    
+
     if tracer:
         frameworks = get_instrumented_frameworks()
         if frameworks:
