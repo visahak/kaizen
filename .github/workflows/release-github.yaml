@@ -22,7 +22,7 @@ on:
 
 jobs:
   check-code:
-    uses: ./.github/workflows/check-code.yml
+    uses: ./.github/workflows/check-code.yaml
   run-tests:
     runs-on: ubuntu-latest
     strategy:
