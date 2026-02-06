@@ -18,15 +18,22 @@ def convert_timestamp(time: bytes) -> datetime.datetime:
     """Convert Unix epoch timestamp to datetime.datetime object."""
     return datetime.datetime.fromtimestamp(int.from_bytes(time), datetime.UTC)
 
+
 sqlite3.register_adapter(datetime.datetime, adapt_datetime_epoch)
 sqlite3.register_converter("timestamp", convert_timestamp)
 
+
 class SQLiteManager:
     """A database for any resources that can't be generalized across backends."""
-    def __init__(self, db_path: str = 'entities.sqlite.db'):
+
+    def __init__(self, db_path: str = "entities.sqlite.db"):
         self.db_path = db_path
+        self.connection: sqlite3.Connection | None = None
+        self._lock: threading.Lock | None = None
 
     def _create_namespace_table(self):
+        assert self._lock is not None
+        assert self.connection is not None
         with self._lock:
             try:
                 self.connection.execute("BEGIN")
@@ -35,18 +42,16 @@ class SQLiteManager:
                         id           TEXT PRIMARY KEY,
                         created_at   TIMESTAMP NOT NULL
                     )
-                """
-                )
+                """)
                 self.connection.execute("COMMIT")
             except Exception as e:
                 self.connection.execute("ROLLBACK")
                 logger.error(f"Failed to create namespaces table: {e}")
                 raise
 
-    def create_namespace(
-        self,
-        namespace_id: str
-    ) -> Namespace:
+    def create_namespace(self, namespace_id: str) -> Namespace:
+        assert self._lock is not None
+        assert self.connection is not None
         created_at = datetime.datetime.now(datetime.timezone.utc)
         with self._lock:
             try:
@@ -58,10 +63,7 @@ class SQLiteManager:
                     )
                     VALUES (?, ?)
                 """,
-                    (
-                        namespace_id,
-                        created_at
-                    ),
+                    (namespace_id, created_at),
                 )
                 self.connection.execute("COMMIT")
             except sqlite3.IntegrityError as e:
@@ -70,32 +72,35 @@ class SQLiteManager:
                 self.connection.execute("ROLLBACK")
                 logger.error(f"Failed to create namespace: {e}")
                 raise
-        return Namespace(
-            id=namespace_id,
-            created_at=created_at
-        )
+        return Namespace(id=namespace_id, created_at=created_at)
 
     def get_namespace(self, namespace_id: str) -> Namespace | None:
+        assert self._lock is not None
+        assert self.connection is not None
         with self._lock:
             cursor: sqlite3.Cursor = self.connection.cursor()
             cursor.row_factory = Namespace.row_factory
-            cursor.execute("""
+            cursor.execute(
+                """
                     SELECT id, created_at
                     FROM namespaces
                     WHERE id = ?
                 """,
                 (namespace_id,),
             )
-            return cursor.fetchone()
+            return cursor.fetchone()  # type: ignore[no-any-return]
 
     def search_namespaces(
         self,
         limit: int = 10,
     ) -> list[Namespace]:
+        assert self._lock is not None
+        assert self.connection is not None
         with self._lock:
             cursor: sqlite3.Cursor = self.connection.cursor()
             cursor.row_factory = Namespace.row_factory
-            cursor.execute("""
+            cursor.execute(
+                """
                     SELECT id, created_at
                     FROM namespaces
                     LIMIT ?
@@ -105,6 +110,8 @@ class SQLiteManager:
             return cursor.fetchall()
 
     def delete_namespace(self, namespace_id: str):
+        assert self._lock is not None
+        assert self.connection is not None
         with self._lock:
             self.connection.execute("BEGIN")
             self.connection.execute("DELETE FROM namespaces WHERE id = ?", (namespace_id,))
@@ -112,6 +119,8 @@ class SQLiteManager:
 
     def reset(self) -> None:
         """Drop and recreate every table."""
+        assert self._lock is not None
+        assert self.connection is not None
         with self._lock:
             try:
                 self.connection.execute("BEGIN")
@@ -129,7 +138,7 @@ class SQLiteManager:
             self.connection = None
 
     def __enter__(self) -> "SQLiteManager":
-        self.connection: sqlite3.Connection = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self._lock = threading.Lock()
         self._create_namespace_table()
         return self

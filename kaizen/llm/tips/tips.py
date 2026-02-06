@@ -23,9 +23,9 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
         - function_calls: List of tool/function calls made
         - num_steps: Total number of agent actions
     """
-    agent_steps = []
-    function_calls = []
-    task_instruction = None
+    agent_steps: list[dict[str, str | dict]] = []
+    function_calls: list[dict[str, str | dict]] = []
+    task_instruction: str | None = None
 
     for message in messages:
         # Extract task instruction from first user message
@@ -39,9 +39,7 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
         if message.get("role") == "assistant":
             content = message.get("content", "")
             if isinstance(content, str) and content.strip():
-                agent_steps.append(
-                    {"type": "reasoning", "content": content, "raw": message}
-                )
+                agent_steps.append({"type": "reasoning", "content": content, "raw": message})
 
             # Extract function calls
             elif isinstance(content, list):
@@ -60,14 +58,10 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
                         args_str = assistant_response["function"]["arguments"]
                         try:
                             args: dict = json.loads(args_str)
-                            args_display = ", ".join(
-                                f"{k}={json.dumps(v)}" for k, v in args.items()
-                            )
+                            args_display = ", ".join(f"{k}={json.dumps(v)}" for k, v in args.items())
                             function_description = f"{assistant_response['function']['name']}({args_display})"
                         except JSONDecodeError:
-                            function_description = (
-                                f"{assistant_response['function']['name']}({args_str})"
-                            )
+                            function_description = f"{assistant_response['function']['name']}({args_str})"
 
                         agent_steps.append(
                             {
@@ -77,13 +71,9 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
                             }
                         )
                     else:
-                        raise KaizenException(
-                            f"Unhandled assistant content type in list `{assistant_response['type']}`"
-                        )
+                        raise KaizenException(f"Unhandled assistant content type in list `{assistant_response['type']}`")
             else:
-                raise KaizenException(
-                    f"Unhandled assistant content type `{type(content)}`"
-                )
+                raise KaizenException(f"Unhandled assistant content type `{type(content)}`")
 
     steps_text = []
     for i, step in enumerate(agent_steps[:50], 1):
@@ -104,9 +94,7 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
         "task_instruction": task_instruction or "Unknown task",
         "trajectory_summary": "\n\n".join(steps_text),
         "function_calls": function_calls,
-        "num_steps": len(
-            [s for s in agent_steps if s["type"] in ["action", "reasoning"]]
-        ),
+        "num_steps": len([s for s in agent_steps if s["type"] in ["action", "reasoning"]]),
     }
 
 
@@ -121,9 +109,7 @@ def generate_tips(messages: list[dict]) -> list[Tip]:
         model=llm_settings.tips_model,
         custom_llm_provider=llm_settings.custom_llm_provider,
     )
-    constrained_decoding_supported = (
-        supports_response_format and response_schema_enabled
-    )
+    constrained_decoding_supported = supports_response_format and response_schema_enabled
     trajectory_data = parse_openai_agents_trajectory(messages)
     prompt = Template(prompt_file.read_text()).render(
         task_instruction=trajectory_data["task_instruction"],
