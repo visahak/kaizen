@@ -10,3 +10,4 @@ kaizen_data
 demo/workdir/.claude/
 .claude
 dist
+.coverage
