@@ -16,6 +16,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+build = ["uv"]
+
 tracing = [
     "openinference-instrumentation-openai",
     "openinference-instrumentation-litellm",
