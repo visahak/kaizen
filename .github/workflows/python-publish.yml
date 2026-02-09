@@ -16,10 +16,16 @@ jobs:
       name: testpypi
       url: https://test.pypi.org/project/kaizen
     steps:
-      - name: Retrieve release distributions
-        uses: actions/download-artifact@v7
-        with:
-          path: dist/
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          gh release download "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "*.tar.gz" \
+            --pattern "*.whl" \
+            --dir dist/
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
