@@ -13,8 +13,8 @@ jobs:
     permissions:
       id-token: write
     environment:
-      name: testpypi
-      url: https://test.pypi.org/project/kaizen
+      name: pypi
+      url: https://pypi.org/project/kaizen
     steps:
       - name: Download release assets
         env:
@@ -29,7 +29,6 @@ jobs:
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
           packages-dir: dist
           print-hash: true
           verbose: true
