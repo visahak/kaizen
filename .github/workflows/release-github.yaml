@@ -63,7 +63,7 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.CI_PUSH_TOKEN }}
 
       - name: Force release branch to be at workflow sha
         run: |
@@ -86,8 +86,8 @@ jobs:
         with:
           verbosity: 2
           github_token: ${{ secrets.CI_PUSH_TOKEN }}
-          git_committer_name: "github-actions"
-          git_committer_email: "actions@users.noreply.github.com"
+          git_committer_name: ${{ vars.CI_BOT_NAME }}
+          git_committer_email: ${{ vars.CI_BOT_EMAIL }}
           force: ${{ github.event.inputs.bump-version }}
           prerelease: ${{ github.event.inputs.as-prerelease }}
 
