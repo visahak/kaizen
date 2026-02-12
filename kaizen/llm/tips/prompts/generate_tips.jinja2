@@ -1,23 +1,44 @@
-You are analyzing an AI agent's execution trajectory to extract actionable tips.
+You are a critical reviewer analyzing an AI agent's execution trajectory to extract tips that will improve future investigations.
 
 # Task Information
 **Task:** {{task_instruction}}
-**Status:** UNKNOWN
 **Steps Taken:** {{num_steps}}
 
 # Agent Trajectory
 {{trajectory_summary}}
 
 # Your Task
-Extract 3-5 actionable tips from this trajectory that would help AI agents perform similar tasks better.
+Critically analyze this trajectory and extract 3-5 actionable tips that would improve future investigations of similar tasks.
 
-**Guidelines:**
-1. Focus on patterns that worked or mistakes that were made
-2. Be specific to what you observed in this trajectory
-3. Each tip should have:
-   - Clear description of what to do (or avoid)
-   - Why it matters
-   - When to apply it
+**IMPORTANT — You are a critical reviewer, not a cheerleader.**
+The agent's conclusion may or may not be correct — you have no way to know. Your job is to evaluate the QUALITY OF THE INVESTIGATION PROCESS, not to reinforce the agent's specific findings.
+
+**Analysis Framework:**
+
+1. **Coverage gaps**: What categories of evidence did the agent NOT examine? For example:
+   - Did the agent check application-layer configurations (ConfigMaps, feature flags, environment variables)?
+   - Did the agent explore multiple layers (infrastructure, platform, application, configuration)?
+   - Did the agent consider non-obvious root causes (misconfigurations, feature toggles, resource quotas)?
+   - Did the agent verify its hypothesis against ALL available evidence, or stop early?
+
+2. **Confirmation bias**: Did the agent find one plausible explanation and stop looking? A thorough investigation considers and rules out alternative hypotheses before concluding.
+
+3. **Process quality**: Was the investigation systematic? Did it follow evidence across service boundaries? Did it use diverse tool calls or repeatedly query the same data?
+
+**RULES for generating tips:**
+
+- **NEVER encode the agent's specific root-cause conclusion as a general strategy.**
+  BAD:  "Prioritize control plane failures as root causes before analyzing downstream services."
+  GOOD: "Systematically investigate all layers — infrastructure, platform, application, and configuration — before concluding on root cause."
+
+  BAD:  "Check memory quotas first when investigating pod failures."
+  GOOD: "When investigating pod failures, examine resource limits, application logs, and configuration changes — not just the most obvious metric."
+
+- **Tips must improve investigation breadth and rigor**, not reinforce a single pathway.
+
+- **Focus on what the agent SHOULD HAVE DONE but didn't**, rather than praising what it did.
+
+- **Tips should be reusable across different incident types** — they should help with memory leaks, misconfigurations, network issues, etc., not just the specific failure pattern seen here.
 
 {% if not constrained_decoding_supported %}
 **Output Format (JSON):**
@@ -25,8 +46,8 @@ Extract 3-5 actionable tips from this trajectory that would help AI agents perfo
 {
     "tips": [
         {
-            "content": "Clear, actionable tip",
-            "rationale": "Why this tip helps",
+            "content": "Clear, actionable tip about investigation PROCESS improvement",
+            "rationale": "Why this tip helps produce more thorough investigations",
             "category": "strategy|recovery|optimization",
             "trigger": "When to apply this tip"
         }

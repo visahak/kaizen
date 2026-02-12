@@ -52,7 +52,7 @@ def get_guidelines(task: str) -> str:
     """
     logger.info(f"Getting guidelines for task: {task}")
     ensure_namespace()
-    # Get relevant guidelines
+    # Get relevant guidelines using semantic search (Milvus) or text match (filesystem)
     results = get_client().search_entities(
         namespace_id=kaizen_config.namespace_id,
         query=task,

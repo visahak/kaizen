@@ -5,18 +5,33 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "arize-phoenix>=12.30.0",
     "fastmcp",
     "jinja2",
     "litellm",
     "pydantic",
-    "pymilvus[milvus-lite]",
-    "sentence-transformers",
+    "pydantic-settings",
     "typer>=0.9.0",
 ]
 
 [project.optional-dependencies]
 build = ["uv"]
+
+# Milvus vector DB backend (requires Rust compiler for tokenizers)
+milvus = [
+    "pymilvus[milvus-lite]",
+    "sentence-transformers",
+]
+
+# Phoenix observability platform integration
+phoenix = [
+    "arize-phoenix>=12.30.0",
+]
+
+# All backends and integrations
+all = [
+    "kaizen[milvus]",
+    "kaizen[phoenix]",
+]
 
 tracing = [
     "openinference-instrumentation-openai",
