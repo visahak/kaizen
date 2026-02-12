@@ -9,7 +9,9 @@ def clean_llm_response(content: str) -> str:
     - Returns the inner content of a Markdown code block.
     - If Markdown code blocks are not present, remove thought and reasoning blocks entirely.
     """
-    pattern = r"^```[a-zA-Z0-9]*\n(.*?)\n```$"
+    # Match code fences with optional newline after opening and before closing fence.
+    # Handles both multi-line (```json\n...\n```) and single-line (```json {...}```) formats.
+    pattern = r"^```[a-zA-Z0-9]*\s*(.*?)\s*```$"
     match = re.match(pattern, content.strip(), flags=re.MULTILINE | re.DOTALL)
     match_res = match.group(1).strip() if match else content.strip()
     return re.sub(r"<(?:think(?:ing)?|reflection)>.*?</(?:think(?:ing)?|reflection)>", "", match_res, flags=re.DOTALL).strip()
