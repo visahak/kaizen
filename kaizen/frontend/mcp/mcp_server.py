@@ -7,7 +7,6 @@ This server provides a tool to get task-relevant guidelines.
 import json
 import logging
 import uuid
-from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
 from kaizen.config.kaizen import kaizen_config
@@ -27,17 +26,17 @@ mcp = FastMCP("entities")
 
 def get_client() -> KaizenClient:
     """Get the KaizenClient singleton with lazy initialization.
-    
+
     Initializes the client and ensures namespace exists on first access.
     This avoids the FastMCP SSE lifespan initialization race condition.
     """
     global _client, _namespace_initialized
-    
+
     if _client is None:
         logger.info("Initializing Kaizen client...")
         _client = KaizenClient()
         logger.info("Kaizen client initialized")
-    
+
     if not _namespace_initialized:
         logger.info("Ensuring namespace exists...")
         try:
@@ -57,7 +56,7 @@ def get_client() -> KaizenClient:
                 raise
         _namespace_initialized = True
         logger.info("Namespace initialization complete")
-    
+
     return _client
 
 
@@ -165,41 +164,30 @@ def create_entity(content: str, entity_type: str, metadata: str | None = None, e
                 metadata_dict = json.loads(metadata)
             except json.JSONDecodeError as e:
                 logger.exception(f"Invalid JSON in metadata parameter: {str(e)}")
-                return json.dumps({
-                    "error": "Invalid metadata JSON",
-                    "message": f"Failed to parse metadata: {str(e)}",
-                    "invalid_metadata": metadata
-                })
-        
+                return json.dumps(
+                    {"error": "Invalid metadata JSON", "message": f"Failed to parse metadata: {str(e)}", "invalid_metadata": metadata}
+                )
+
         # Create the entity using the Entity schema
-        entity = Entity(
-            type=entity_type,
-            content=content,
-            metadata=metadata_dict
-        )
-        
+        entity = Entity(type=entity_type, content=content, metadata=metadata_dict)
+
         # Use KaizenClient.update_entities() to create the entity
         updates = get_client().update_entities(
-            namespace_id=kaizen_config.namespace_id,
-            entities=[entity],
-            enable_conflict_resolution=enable_conflict_resolution
+            namespace_id=kaizen_config.namespace_id, entities=[entity], enable_conflict_resolution=enable_conflict_resolution
         )
-        
+
         # Return the first (and only) update result
         if updates:
             update = updates[0]
-            return json.dumps({
-                "event": update.event,
-                "id": update.id,
-                "type": update.type,
-                "content": update.content,
-                "metadata": update.metadata
-            })
+            return json.dumps(
+                {"event": update.event, "id": update.id, "type": update.type, "content": update.content, "metadata": update.metadata}
+            )
         else:
             return json.dumps({"error": "Entity creation failed"})
-            
+
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         logger.exception(f"CRASH IN CREATE_ENTITY: {e}")
         return json.dumps({"error": f"Server Error: {str(e)}"})
@@ -217,7 +205,7 @@ def delete_entity(entity_id: str) -> str:
         JSON string confirming deletion or error message
     """
     logger.info(f"Deleting entity: {entity_id}")
-    
+
     try:
         # Use KaizenClient.delete_entity_by_id() to delete the entity
         get_client().delete_entity_by_id(namespace_id=kaizen_config.namespace_id, entity_id=entity_id)

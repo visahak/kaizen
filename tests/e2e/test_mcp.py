@@ -5,8 +5,6 @@ from fastmcp.client import Client
 from pathlib import Path
 from dotenv import load_dotenv
 
-import uuid
-from kaizen.config.milvus import milvus_client_settings
 
 __data__ = Path(__file__).parent.parent / "data"
 load_dotenv()
@@ -15,32 +13,36 @@ load_dotenv()
 @pytest.fixture
 def mcp(tmp_path):
     # Use filesystem backend for simpler tests
-    os.environ['KAIZEN_BACKEND'] = 'filesystem'
-    os.environ['KAIZEN_NAMESPACE_ID'] = 'test'
-    os.environ['KAIZEN_DATA_DIR'] = str(tmp_path)
-    
+    os.environ["KAIZEN_BACKEND"] = "filesystem"
+    os.environ["KAIZEN_NAMESPACE_ID"] = "test"
+    os.environ["KAIZEN_DATA_DIR"] = str(tmp_path)
+
     # Reload settings to pick up environment variables
     from kaizen.config.kaizen import kaizen_config
+
     kaizen_config.__init__()
-    
+
     from kaizen.config.filesystem import filesystem_settings
+
     filesystem_settings.__init__()
 
     # Reset the MCP server client
     import kaizen.frontend.mcp.mcp_server as mcp_server_module
+
     mcp_server_module._client = None
     mcp_server_module._namespace_initialized = False
-    
+
     # Explicitly create the test namespace
     from kaizen.frontend.client.kaizen_client import KaizenClient
+
     kaizen_client = KaizenClient()
     try:
-        kaizen_client.create_namespace('test')
+        kaizen_client.create_namespace("test")
     except Exception:
         pass
 
     yield mcp_server_module.mcp
-    
+
     # Cleanup
     mcp_server_module._client = None
     mcp_server_module._namespace_initialized = False
@@ -89,35 +91,33 @@ async def test_create_entity_without_conflict_resolution(mcp):
 @pytest.mark.e2e
 async def test_create_entity_with_conflict_resolution(mcp):
     """Test creating an entity with conflict resolution enabled."""
-    from unittest.mock import patch
     from kaizen.schema.conflict_resolution import EntityUpdate
 
     async with Client(transport=mcp) as kaizen_mcp:
         # Create first entity
-        response1 = await kaizen_mcp.call_tool_mcp('create_entity', {
-            'content': 'Use descriptive variable names',
-            'entity_type': 'guideline',
-            'enable_conflict_resolution': False
-        })
+        response1 = await kaizen_mcp.call_tool_mcp(
+            "create_entity", {"content": "Use descriptive variable names", "entity_type": "guideline", "enable_conflict_resolution": False}
+        )
         result1 = json.loads(response1.content[0].text)
-        assert result1['event'] == 'ADD'
-        first_entity_id = result1['id']
-        
+        assert result1["event"] == "ADD"
+        first_entity_id = result1["id"]
+
         # Custom Mocking because patch seems to fail in this context
         import sys
-        fs_backend = sys.modules['kaizen.backend.filesystem']
-        
+
+        fs_backend = sys.modules["kaizen.backend.filesystem"]
+
         original_resolve = fs_backend.resolve_conflicts
-        
+
         def mock_resolve_func(*args, **kwargs):
             return [
                 EntityUpdate(
                     id=str(first_entity_id), type="guideline", content="Always use descriptive variable names", event="UPDATE", metadata={}
                 )
             ]
-            
+
         fs_backend.resolve_conflicts = mock_resolve_func
-        
+
         try:
             # Create similar entity with conflict resolution
             response = await kaizen_mcp.call_tool_mcp(
@@ -129,8 +129,8 @@ async def test_create_entity_with_conflict_resolution(mcp):
             result = json.loads(response.content[0].text)
 
             # Should return what our mock returned
-            assert result['event'] == 'UPDATE'
-            assert result['id'] == str(first_entity_id)
+            assert result["event"] == "UPDATE"
+            assert result["id"] == str(first_entity_id)
         finally:
             fs_backend.resolve_conflicts = original_resolve
 
