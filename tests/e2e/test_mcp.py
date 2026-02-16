@@ -5,26 +5,41 @@ from fastmcp.client import Client
 from pathlib import Path
 from dotenv import load_dotenv
 
+import uuid
+from kaizen.config.milvus import milvus_client_settings
 
 __data__ = Path(__file__).parent.parent / "data"
 load_dotenv()
 
 
-@pytest.fixture
-def mcp(tmp_path):
-    # Use filesystem backend for simpler tests
-    os.environ["KAIZEN_BACKEND"] = "filesystem"
+@pytest.fixture(params=["milvus", "filesystem"])
+def mcp(request, tmp_path):
+    backend_type = request.param
     os.environ["KAIZEN_NAMESPACE_ID"] = "test"
-    os.environ["KAIZEN_DATA_DIR"] = str(tmp_path)
+    os.environ["KAIZEN_BACKEND"] = backend_type
 
-    # Reload settings to pick up environment variables
+    # Common SQLite setup
+    os.environ["KAIZEN_SQLITE_PATH"] = str(tmp_path / f"test_{backend_type}.sqlite.db")
+
+    # Backend-specific setup
+    milvus_db_file = None
+    original_milvus_uri = None
+
+    if backend_type == "milvus":
+        # Use a unique DB file for each test to avoid socket/locking issues
+        milvus_db_file = f"test_{uuid.uuid4().hex[:8]}.db"
+        original_milvus_uri = milvus_client_settings.uri
+        milvus_client_settings.uri = milvus_db_file
+        # Note: currently milvus-lite creates a file, not a dir for the uri
+        # We set KAIZEN_URI just in case, though settings init should pick it up if we did it before
+    elif backend_type == "filesystem":
+        os.environ["KAIZEN_DATA_DIR"] = str(tmp_path)
+
+    from kaizen.frontend.client.kaizen_client import KaizenClient
     from kaizen.config.kaizen import kaizen_config
 
+    # Reset loaded settings to pick up new env vars
     kaizen_config.__init__()
-
-    from kaizen.config.filesystem import filesystem_settings
-
-    filesystem_settings.__init__()
 
     # Reset the MCP server client
     import kaizen.frontend.mcp.mcp_server as mcp_server_module
@@ -32,10 +47,8 @@ def mcp(tmp_path):
     mcp_server_module._client = None
     mcp_server_module._namespace_initialized = False
 
-    # Explicitly create the test namespace
-    from kaizen.frontend.client.kaizen_client import KaizenClient
-
     kaizen_client = KaizenClient()
+    # Create the test namespace
     try:
         kaizen_client.create_namespace("test")
     except Exception:
@@ -44,6 +57,49 @@ def mcp(tmp_path):
     yield mcp_server_module.mcp
 
     # Cleanup
+    try:
+        kaizen_client.backend.close()
+    except Exception:
+        pass
+
+    if backend_type == "milvus":
+        # Disconnect all pymilvus connections
+        try:
+            from pymilvus import connections
+
+            for alias, _ in connections.list_connections():
+                try:
+                    connections.disconnect(alias)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Release all Milvus Lite servers
+        try:
+            from milvus_lite.server_manager import server_manager_instance
+
+            server_manager_instance.release_all()
+        except Exception:
+            pass
+
+        # Restore original URI
+        if original_milvus_uri:
+            milvus_client_settings.uri = original_milvus_uri
+
+        # Clean up temp DB files
+        if milvus_db_file and os.path.exists(milvus_db_file):
+            try:
+                os.remove(milvus_db_file)
+            except Exception:
+                pass
+        if milvus_db_file and os.path.exists(f"{milvus_db_file}.lock"):
+            try:
+                os.remove(f"{milvus_db_file}.lock")
+            except Exception:
+                pass
+
+    # Reset the MCP server client
     mcp_server_module._client = None
     mcp_server_module._namespace_initialized = False
 
@@ -91,34 +147,36 @@ async def test_create_entity_without_conflict_resolution(mcp):
 @pytest.mark.e2e
 async def test_create_entity_with_conflict_resolution(mcp):
     """Test creating an entity with conflict resolution enabled."""
+    from unittest.mock import patch
     from kaizen.schema.conflict_resolution import EntityUpdate
 
     async with Client(transport=mcp) as kaizen_mcp:
         # Create first entity
-        response1 = await kaizen_mcp.call_tool_mcp(
+        response = await kaizen_mcp.call_tool_mcp(
             "create_entity", {"content": "Use descriptive variable names", "entity_type": "guideline", "enable_conflict_resolution": False}
         )
-        result1 = json.loads(response1.content[0].text)
-        assert result1["event"] == "ADD"
-        first_entity_id = result1["id"]
 
-        # Custom Mocking because patch seems to fail in this context
-        import sys
+        assert not response.isError
+        result = json.loads(response.content[0].text)
+        assert result["event"] == "ADD"
+        first_entity_id = result["id"]
 
-        fs_backend = sys.modules["kaizen.backend.filesystem"]
+        # Mock resolve_conflicts to avoid LLM call timeout
+        import os
 
-        original_resolve = fs_backend.resolve_conflicts
+        if os.environ.get("KAIZEN_BACKEND") == "filesystem":
+            patch_target = "kaizen.backend.filesystem.resolve_conflicts"
+        else:
+            patch_target = "kaizen.backend.milvus.resolve_conflicts"
 
-        def mock_resolve_func(*args, **kwargs):
-            return [
+        with patch(patch_target) as mock_resolve:
+            # Configure mock to return an UPDATE event
+            mock_resolve.return_value = [
                 EntityUpdate(
                     id=str(first_entity_id), type="guideline", content="Always use descriptive variable names", event="UPDATE", metadata={}
                 )
             ]
 
-        fs_backend.resolve_conflicts = mock_resolve_func
-
-        try:
             # Create similar entity with conflict resolution
             response = await kaizen_mcp.call_tool_mcp(
                 "create_entity",
@@ -131,8 +189,6 @@ async def test_create_entity_with_conflict_resolution(mcp):
             # Should return what our mock returned
             assert result["event"] == "UPDATE"
             assert result["id"] == str(first_entity_id)
-        finally:
-            fs_backend.resolve_conflicts = original_resolve
 
 
 @pytest.mark.e2e
