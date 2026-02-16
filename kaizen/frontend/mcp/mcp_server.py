@@ -6,6 +6,7 @@ This server provides a tool to get task-relevant guidelines.
 
 import json
 import logging
+import threading
 import uuid
 
 from fastmcp import FastMCP
@@ -20,6 +21,7 @@ logger = logging.getLogger("entities-mcp")
 
 _client = None
 _namespace_initialized = False
+_client_init_lock = threading.Lock()
 
 mcp = FastMCP("entities")
 
@@ -32,32 +34,33 @@ def get_client() -> KaizenClient:
     """
     global _client, _namespace_initialized
 
-    if _client is None:
-        logger.info("Initializing Kaizen client...")
-        _client = KaizenClient()
-        logger.info("Kaizen client initialized")
+    with _client_init_lock:
+        if _client is None:
+            logger.info("Initializing Kaizen client...")
+            _client = KaizenClient()
+            logger.info("Kaizen client initialized")
 
-    if not _namespace_initialized:
-        logger.info("Ensuring namespace exists...")
-        try:
-            _client.get_namespace_details(kaizen_config.namespace_id)
-            logger.info(f"Namespace '{kaizen_config.namespace_id}' already exists")
-        except NamespaceNotFoundException:
-            logger.info(f"Creating namespace '{kaizen_config.namespace_id}'")
-            _client.create_namespace(kaizen_config.namespace_id)
-            logger.info(f"Namespace '{kaizen_config.namespace_id}' created successfully")
-        except Exception as e:
-            logger.error(f"Error ensuring namespace: {e}")
+        if not _namespace_initialized:
+            logger.info("Ensuring namespace exists...")
             try:
+                _client.get_namespace_details(kaizen_config.namespace_id)
+                logger.info(f"Namespace '{kaizen_config.namespace_id}' already exists")
+            except NamespaceNotFoundException:
+                logger.info(f"Creating namespace '{kaizen_config.namespace_id}'")
                 _client.create_namespace(kaizen_config.namespace_id)
-                logger.info(f"Namespace '{kaizen_config.namespace_id}' created after error")
-            except Exception as create_error:
-                logger.error(f"Failed to create namespace: {create_error}")
-                raise
-        _namespace_initialized = True
-        logger.info("Namespace initialization complete")
+                logger.info(f"Namespace '{kaizen_config.namespace_id}' created successfully")
+            except Exception as e:
+                logger.error(f"Error ensuring namespace: {e}")
+                try:
+                    _client.create_namespace(kaizen_config.namespace_id)
+                    logger.info(f"Namespace '{kaizen_config.namespace_id}' created after error")
+                except Exception as create_error:
+                    logger.error(f"Failed to create namespace: {create_error}")
+                    raise
+            _namespace_initialized = True
+            logger.info("Namespace initialization complete")
 
-    return _client
+        return _client
 
 
 @mcp.tool()
