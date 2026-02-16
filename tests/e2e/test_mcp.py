@@ -26,8 +26,8 @@ def mcp(request, tmp_path):
     original_milvus_uri = None
 
     if backend_type == "milvus":
-        # Use a unique DB file for each test to avoid socket/locking issues
-        milvus_db_file = f"test_{uuid.uuid4().hex[:8]}.db"
+        # Use a unique DB file inside tmp_path for each test to avoid socket/locking issues and ensure cleanup
+        milvus_db_file = str(tmp_path / f"test_{uuid.uuid4().hex[:8]}.db")
         original_milvus_uri = milvus_client_settings.uri
         milvus_client_settings.uri = milvus_db_file
         # Note: currently milvus-lite creates a file, not a dir for the uri
