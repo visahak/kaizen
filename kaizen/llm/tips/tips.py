@@ -1,15 +1,19 @@
 import json
+import logging
 from json import JSONDecodeError
+from pathlib import Path
 
 import litellm
-
 from jinja2 import Template
 from litellm import completion, get_supported_openai_params, supports_response_schema
+from pydantic import ValidationError
+
 from kaizen.config.llm import llm_settings
-from kaizen.utils.utils import clean_llm_response
 from kaizen.schema.exceptions import KaizenException
-from kaizen.schema.tips import TipGenerationResponse, Tip
-from pathlib import Path
+from kaizen.schema.tips import Tip, TipGenerationResponse
+from kaizen.utils.utils import clean_llm_response
+
+logger = logging.getLogger(__name__)
 
 
 def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
@@ -73,7 +77,8 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
                     else:
                         raise KaizenException(f"Unhandled assistant content type in list `{assistant_response['type']}`")
             else:
-                raise KaizenException(f"Unhandled assistant content type `{type(content)}`")
+                # Skip empty assistant messages (common from tool-calling patterns)
+                continue
 
     steps_text = []
     for i, step in enumerate(agent_steps[:50], 1):
@@ -142,4 +147,14 @@ def generate_tips(messages: list[dict]) -> list[Tip]:
             .message.content
         )
         clean_response = clean_llm_response(response)
-    return TipGenerationResponse.model_validate(json.loads(clean_response)).tips
+    if not clean_response:
+        logger.warning(f"LLM returned empty response for tip generation. Model: {llm_settings.tips_model}")
+        return []
+    try:
+        return TipGenerationResponse.model_validate(json.loads(clean_response)).tips
+    except JSONDecodeError as e:
+        logger.warning(f"Failed to parse LLM tip generation response: {e}. Response: {repr(clean_response[:500])}")
+        return []
+    except ValidationError as e:
+        logger.warning(f"Failed to validate LLM tip generation response: {e}. Response: {repr(clean_response[:500])}")
+        return []
