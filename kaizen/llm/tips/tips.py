@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from kaizen.config.llm import llm_settings
 from kaizen.schema.exceptions import KaizenException
-from kaizen.schema.tips import Tip, TipGenerationResponse
+from kaizen.schema.tips import TipGenerationResponse, TipGenerationResult
 from kaizen.utils.utils import clean_llm_response
 
 logger = logging.getLogger(__name__)
@@ -96,14 +96,14 @@ def parse_openai_agents_trajectory(messages: list[dict]) -> dict:
             steps_text.append(f"**Step {i} - Observation:**\n{content}")
 
     return {
-        "task_instruction": task_instruction or "Unknown task",
+        "task_instruction": task_instruction or "Task description unknown",
         "trajectory_summary": "\n\n".join(steps_text),
         "function_calls": function_calls,
         "num_steps": len([s for s in agent_steps if s["type"] in ["action", "reasoning"]]),
     }
 
 
-def generate_tips(messages: list[dict]) -> list[Tip]:
+def generate_tips(messages: list[dict]) -> TipGenerationResult:
     prompt_file = Path(__file__).parent / "prompts/generate_tips.jinja2"
     supported_params = get_supported_openai_params(
         model=llm_settings.tips_model,
@@ -116,8 +116,9 @@ def generate_tips(messages: list[dict]) -> list[Tip]:
     )
     constrained_decoding_supported = supports_response_format and response_schema_enabled
     trajectory_data = parse_openai_agents_trajectory(messages)
+    task_description = trajectory_data["task_instruction"]
     prompt = Template(prompt_file.read_text()).render(
-        task_instruction=trajectory_data["task_instruction"],
+        task_instruction=task_description,
         num_steps=trajectory_data["num_steps"],
         trajectory_summary=trajectory_data["trajectory_summary"],
         constrained_decoding_supported=constrained_decoding_supported,
@@ -149,12 +150,13 @@ def generate_tips(messages: list[dict]) -> list[Tip]:
         clean_response = clean_llm_response(response)
     if not clean_response:
         logger.warning(f"LLM returned empty response for tip generation. Model: {llm_settings.tips_model}")
-        return []
+        return TipGenerationResult(tips=[], task_description=task_description)
     try:
-        return TipGenerationResponse.model_validate(json.loads(clean_response)).tips
+        tips = TipGenerationResponse.model_validate(json.loads(clean_response)).tips
+        return TipGenerationResult(tips=tips, task_description=task_description)
     except JSONDecodeError as e:
         logger.warning(f"Failed to parse LLM tip generation response: {e}. Response: {repr(clean_response[:500])}")
-        return []
+        return TipGenerationResult(tips=[], task_description=task_description)
     except ValidationError as e:
         logger.warning(f"Failed to validate LLM tip generation response: {e}. Response: {repr(clean_response[:500])}")
-        return []
+        return TipGenerationResult(tips=[], task_description=task_description)
