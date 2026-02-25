@@ -3,6 +3,7 @@ import threading
 import uvicorn
 import logging
 
+
 def run_api_server():
     """Run the FastAPI server for UI and API in a background thread."""
     try:
@@ -10,6 +11,7 @@ def run_api_server():
         uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
     except Exception as e:
         logging.error(f"Failed to start UI server: {e}")
+
 
 def main():
     """
@@ -21,6 +23,7 @@ def main():
 
     # Start FastMCP using stdio (which blocks)
     mcp.run()
+
 
 if __name__ == "__main__":
     main()
