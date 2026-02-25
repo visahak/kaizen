@@ -86,6 +86,8 @@ build_command = '''
     perl -i -pe "s|src=\"docs/|src=\"https://raw.githubusercontent.com/AgentToolkit/kaizen/v$NEW_VERSION/docs/|g" README.md
     perl -i -pe "s|\]\(([A-Z_]*\.md)\)|](https://github.com/AgentToolkit/kaizen/blob/v$NEW_VERSION/\$1)|g" README.md
     perl -i -pe "s|\]\(docs/([^)]*)\)|](https://github.com/AgentToolkit/kaizen/blob/v$NEW_VERSION/docs/\$1)|g" README.md
+    cd kaizen/frontend/ui && npm ci && npm run build && cd ../../../
+    if [ ! -d "kaizen/frontend/ui/dist" ]; then echo "UI build failed!" && exit 1; fi
     uv build
     mv README.md.bak README.md
 '''
