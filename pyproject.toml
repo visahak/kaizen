@@ -133,6 +133,5 @@ module = [
     "milvus_lite.*",
     "openinference.*",
     "agents.*",
-    "kaizen.schema.policy",
 ]
 ignore_missing_imports = true
