@@ -148,6 +148,5 @@ module = [
     "pgvector.*",
     "psycopg.*",
     "entity_io.*",
-    "kaizen.schema.policy",
 ]
 ignore_missing_imports = true
