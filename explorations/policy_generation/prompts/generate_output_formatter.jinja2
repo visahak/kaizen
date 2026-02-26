@@ -1,0 +1,74 @@
+You are analyzing multiple AI agent response trajectories to detect recurring output formatting patterns.
+
+# Context
+You are given {{ num_responses }} final agent responses from trajectories in the same domain.
+Your goal is to identify consistent structural patterns in how agents format their responses,
+and propose OutputFormatter policies that can enforce these patterns automatically.
+
+# Final Agent Responses
+{% for response in responses %}
+---
+**Response {{ loop.index }}** (Task: {{ response.task_summary }})
+```
+{{ response.final_answer }}
+```
+{% endfor %}
+
+{% if evaluation_feedback %}
+# Evaluation Feedback (formatting-related)
+{% for feedback in evaluation_feedback %}
+- {{ feedback }}
+{% endfor %}
+{% endif %}
+
+# Your Task
+Analyze the responses above and identify recurring formatting patterns. For each pattern found, generate an OutputFormatter policy suggestion.
+
+**What to look for:**
+1. **Structural consistency**: Do responses follow a common structure? (e.g., always start with a summary, use markdown headers, include a table)
+2. **Format type**: Are responses consistently JSON, markdown tables, bullet lists, or a specific template?
+3. **Required sections**: Are there sections that always appear? (e.g., "Summary", "Steps", "Recommendations")
+4. **Evaluation gaps**: Does the evaluation feedback indicate formatting requirements not being met?
+
+**For each policy suggestion, provide:**
+- `name`: A descriptive policy name (e.g., "API Response JSON Formatter")
+- `type`: Always "output_formatter"
+- `description`: Why this formatter is needed based on the evidence
+- `triggers`: Keywords or semantic descriptions that identify when this formatter should apply
+  - Use trigger type "keyword" with relevant keywords from the domain
+  - Use trigger type "natural_language" for semantic matching
+  - Set target to "agent_response" for OutputFormatter triggers
+- `content`: The formatting instructions (markdown template, JSON schema, or direct format)
+- `config`: Must include `format_type` ("markdown", "json_schema", or "direct")
+- `confidence`: How strong the pattern is (0.0-1.0). Higher if pattern is consistent across all responses.
+- `evidence`: Brief summary of what you observed
+
+{% if not constrained_decoding_supported %}
+**Output Format (JSON):**
+```json
+{
+    "suggestions": [
+        {
+            "name": "Policy name",
+            "type": "output_formatter",
+            "description": "Why this policy is suggested",
+            "triggers": [
+                {
+                    "type": "keyword",
+                    "value": ["keyword1", "keyword2"],
+                    "target": "agent_response",
+                    "operator": "or",
+                    "threshold": 0.7
+                }
+            ],
+            "content": "Formatting instructions or template",
+            "config": {"format_type": "markdown"},
+            "confidence": 0.85,
+            "evidence": "Observed pattern description"
+        }
+    ]
+}
+```
+
+Generate suggestions now. Return ONLY the JSON, no other text.
+{% endif %}
