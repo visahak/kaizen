@@ -102,6 +102,8 @@ Output entities in the following JSON format:
 
 ### Step 5: Save Entities
 
+⚠️ **CRITICAL: The save.py script ONLY accepts JSON via stdin pipe. It does NOT accept CLI arguments like --task or --outcome.**
+
 After generating the entities JSON:
 - **If entities array is empty** (`{"entities": []}`): Skip the save command and notify the user that no learnings were identified for this routine task. Proceed directly to `attempt_completion`.
 - **If entities array has content**: Save them by piping the JSON into the `save.py` script as shown below.
@@ -111,10 +113,14 @@ After generating the entities JSON:
 printf '{"entities": [...]}' | python3 .bob/skills/kaizen-learn/scripts/save.py
 ```
 
-**❌ WRONG SYNTAX (will hang forever):**
+**❌ WRONG SYNTAX (CLI arguments are NOT supported):**
 ```bash
-# DO NOT DO THIS - no CLI arguments exist:
+# ⚠️ NEVER DO THIS - The script does NOT accept --task, --outcome, or any CLI arguments:
 python3 .bob/skills/kaizen-learn/scripts/save.py --task "..." --outcome "..."
+
+# This will produce an error like:
+# "ERROR: This script does not accept CLI arguments."
+# or cause the script to hang waiting for stdin input.
 ```
 
 **❌ WRONG SYNTAX (JSON parsing error):**
