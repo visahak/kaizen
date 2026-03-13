@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+
 def main():
     print("[Kaizen Learn] Processing extracted entities...")
 
@@ -19,7 +20,10 @@ def main():
         print("ERROR: This script does not accept CLI arguments.", file=sys.stderr)
         print("", file=sys.stderr)
         print("Correct usage (pipe JSON via stdin):", file=sys.stderr)
-        print("  printf '{\"entities\": [{\"content\": \"...\", \"rationale\": \"...\", \"category\": \"strategy\", \"trigger\": \"...\"}]}' | python3 <path-to-script>/save.py", file=sys.stderr)
+        print(
+            '  printf \'{"entities": [{"content": "...", "rationale": "...", "category": "strategy", "trigger": "..."}]}\' | python3 <path-to-script>/save.py',
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     input_data = sys.stdin.read().strip()
@@ -51,25 +55,27 @@ def main():
     existing_data = {"entities": []}
     if entities_file.exists():
         try:
-            with open(entities_file, 'r', encoding='utf-8') as f:
+            with open(entities_file, "r", encoding="utf-8") as f:
                 existing_data = json.load(f)
         except Exception as e:
             print(f"Warning: Could not read existing entities file: {e}", file=sys.stderr)
 
     existing_entities = existing_data.get("entities", [])
-    
+
     # 4. Merge and Deduplicate
     added_count = 0
     from datetime import timezone
+
     now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     # Deduplication: exact match set + semantic similarity check
-    seen = { (e.get("content", ""), e.get("trigger", e.get("metadata", {}).get("trigger", ""))) for e in existing_entities }
+    seen = {(e.get("content", ""), e.get("trigger", e.get("metadata", {}).get("trigger", ""))) for e in existing_entities}
 
     def _normalize(text):
         """Lowercase and extract significant words (>3 chars) for overlap comparison."""
         import re
-        words = re.findall(r'[a-z0-9]+', text.lower())
+
+        words = re.findall(r"[a-z0-9]+", text.lower())
         return set(w for w in words if len(w) > 3)
 
     def _is_semantically_similar(new_content, new_trigger, existing_entities, threshold=0.6):
@@ -100,34 +106,30 @@ def main():
         # Skip semantically similar entities
         is_similar, match = _is_semantically_similar(content, trigger, existing_entities)
         if is_similar:
-            print(f"  ~ Skipped (similar to existing): \"{content[:60]}...\"")
-            print(f"    Existing: \"{match[:60]}...\"")
+            print(f'  ~ Skipped (similar to existing): "{content[:60]}..."')
+            print(f'    Existing: "{match[:60]}..."')
             continue
-            
+
         # Format entity for storage
         storable_entity = {
             "id": str(uuid.uuid4()),
             "type": "guideline",
             "content": content,
-            "metadata": {
-                "category": entity.get("category", "strategy"),
-                "trigger": trigger,
-                "rationale": entity.get("rationale", "")
-            },
-            "created_at": now_iso
+            "metadata": {"category": entity.get("category", "strategy"), "trigger": trigger, "rationale": entity.get("rationale", "")},
+            "created_at": now_iso,
         }
-        
+
         existing_entities.append(storable_entity)
         seen.add((content, trigger))
         added_count += 1
-        
+
         print(f"  + [{storable_entity['metadata']['category']}] {content[:80]}...")
 
     # 5. Save back to disk
     if added_count > 0:
         existing_data["entities"] = existing_entities
         try:
-            with open(entities_file, 'w', encoding='utf-8') as f:
+            with open(entities_file, "w", encoding="utf-8") as f:
                 json.dump(existing_data, f, indent=2)
             print(f"\n✅ Successfully saved {added_count} new entities to {entities_file}")
             print(f"📊 Total entities in memory: {len(existing_entities)}")
@@ -138,6 +140,7 @@ def main():
         print("\nℹ️ No new unique entities to add.")
 
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

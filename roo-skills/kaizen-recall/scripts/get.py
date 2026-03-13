@@ -10,6 +10,7 @@ import json
 import sys
 from pathlib import Path
 
+
 def main():
     parser = argparse.ArgumentParser(description="Get Kaizen entities (Stage 2 Filesystem)")
     parser.add_argument("--type", type=str, default="guideline", help="Entity type (default: guideline)")
@@ -27,7 +28,7 @@ def main():
 
     # 2. Load Entities
     try:
-        with open(entities_file, 'r', encoding='utf-8') as f:
+        with open(entities_file, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
         print(f"Error reading entities file: {e}", file=sys.stderr)
@@ -36,13 +37,13 @@ def main():
     all_entities = data.get("entities", [])
 
     # 3. Filter by type and sort (newest first)
-    filtered = [e for e in all_entities if e.get("type") == args.type]
+    filtered = [ent for ent in all_entities if ent.get("type") == args.type]
 
     # Sort by created_at descending (safely handle missing keys)
     filtered.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
     # Apply limit
-    results = filtered[:args.limit]
+    results = filtered[: args.limit]
 
     if not results:
         print(f"No entities of type '{args.type}' found.")
@@ -52,31 +53,32 @@ def main():
     print(f"## KAIZEN {args.type.upper()}S ({len(results)} found)\n")
     print("Review these entities and apply any relevant ones to your current task:\n")
 
-    for e in results:
-        content = e.get("content", "")
+    for entity in results:
+        content = entity.get("content", "")
         if not content:
             continue
-            
-        metadata = e.get("metadata", {})
+
+        metadata = entity.get("metadata", {})
         category = metadata.get("category", "general")
-        
+
         # Build the markdown bullet point
         item = f"- **[{category}]** {content}"
-        
+
         # Add rationale and trigger if they exist
         rationale = metadata.get("rationale", "")
         trigger = metadata.get("trigger", "")
-        
+
         if rationale:
             item += f"\n  - _Rationale: {rationale}_"
         if trigger:
             item += f"\n  - _When: {trigger}_"
-            
+
         print(item)
-        print() # Empty line between entities
+        print()  # Empty line between entities
 
     print("\n--- END GUIDELINES ---")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
