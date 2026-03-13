@@ -48,20 +48,33 @@ def main():
         print(f"No entities of type '{args.type}' found.")
         sys.exit(0)
 
-    # 4. Format compact output to save LLM context tokens
-    print(f"--- KAIZEN {args.type.upper()}S ({len(results)} found) ---\n")
+    # 4. Format output as Markdown
+    print(f"## KAIZEN {args.type.upper()}S ({len(results)} found)\n")
+    print("Review these entities and apply any relevant ones to your current task:\n")
 
-    compact_results = []
     for e in results:
+        content = e.get("content", "")
+        if not content:
+            continue
+            
         metadata = e.get("metadata", {})
-        compact_results.append({
-            "content": e.get("content", ""),
-            "rationale": metadata.get("rationale", ""),
-            "trigger": metadata.get("trigger", ""),
-            "category": metadata.get("category", "unknown")
-        })
+        category = metadata.get("category", "general")
+        
+        # Build the markdown bullet point
+        item = f"- **[{category}]** {content}"
+        
+        # Add rationale and trigger if they exist
+        rationale = metadata.get("rationale", "")
+        trigger = metadata.get("trigger", "")
+        
+        if rationale:
+            item += f"\n  - _Rationale: {rationale}_"
+        if trigger:
+            item += f"\n  - _When: {trigger}_"
+            
+        print(item)
+        print() # Empty line between entities
 
-    print(json.dumps(compact_results, indent=2))
     print("\n--- END GUIDELINES ---")
     sys.exit(0)
 

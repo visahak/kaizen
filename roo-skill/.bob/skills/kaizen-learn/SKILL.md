@@ -30,6 +30,14 @@ Scan the conversation for these error signals:
 5. **Missing prerequisites**: Missing dependencies, packages, configs discovered mid-task
 6. **Silent failures**: Actions that appeared to succeed but produced wrong results
 
+For each error found, clearly document the progression from failure to prevention:
+
+| Error Example | Root Cause | Resolution | Prevention Guideline |
+|---|---|---|---|
+| `exiftool: command not found` | System tool unavailable | Switched to Python PIL | Use PIL for image metadata in sandboxed environments |
+| `git push` rejected | Branch not tracked to remote | Added `-u origin branch` | Always set upstream when pushing a new branch |
+| Tried regex parsing of HTML | Regex can't handle nested tags | Switched to BeautifulSoup | Use a proper HTML parser (BeautifulSoup/lxml), never regex |
+
 > **If no errors are found**, proceed to Step 3 — but note that zero entities is a valid outcome for routine conversations.
 
 ### Step 2b: Quality Gate
@@ -71,13 +79,17 @@ Follow these principles:
    - `recovery` — a fallback chain was needed → start from the approach that worked
    - `optimization` — effort was wasted on retries/timeouts → eliminate the waste
    > If you find yourself categorizing everything as `strategy`, reconsider whether the entity is truly non-obvious. True strategy entities arise when a wrong approach was actually taken.
-5. **Do NOT generate entities like these** (too generic / obvious):
+5. **Merge/Rank/Drop (For chaotic sessions)**: If you find many errors, apply this algorithm to get down to 0-2 entities:
+   - **Merge**: Combine errors with the same root cause into a single prevention entity
+   - **Rank**: Select among remaining entities by severity > frequency > user impact > recency
+   - **Drop**: Discard lowest-ranked entities that exceed the 2-entity cap
+6. **Do NOT generate entities like these** (too generic / obvious):
    - "Answer factual questions from knowledge" — any LLM already does this
    - "Clarify ambiguous user queries" — basic conversational behavior
    - "Execute commands when the user asks you to" — obvious
    - "Provide context with answers" — too vague, applies to everything
    - "For simple tasks, keep it simple" — truism
-6. **DO generate entities like these** (specific, learned):
+7. **DO generate entities like these** (specific, learned):
    - "Use `python3` instead of `python` on macOS — the `python` symlink doesn't exist by default" — environment-specific
    - "The kaizen save.py script reads from stdin only; do not pass CLI arguments" — project-specific, error-derived
    - "In sandboxed containers, `apt-get` is unavailable; use Python stdlib for system tasks" — recovery from a real constraint
@@ -97,6 +109,26 @@ Output entities in the following JSON format:
       "trigger": "Situational context when this applies"
     }
   ]
+}
+```
+
+### Step 4b: Examples of Good vs Bad Entities
+
+**BAD (reactive and generic):**
+```json
+{
+  "content": "Fall back to Python PIL when exiftool is not available",
+  "trigger": "When exiftool command fails"
+}
+```
+
+**GOOD (proactive and situational):**
+```json
+{
+  "content": "Use Python PIL/Pillow for image metadata extraction in sandboxed environments",
+  "rationale": "System tools like exiftool may not be available; PIL is always installable via pip",
+  "category": "strategy",
+  "trigger": "When extracting image metadata in containerized or sandboxed environments"
 }
 ```
 
