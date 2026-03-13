@@ -15,7 +15,6 @@ customModes:
       1. ⚠️ FIRST ACTION (MANDATORY): Use the kaizen-recall skill to retrieve relevant guidelines.
          - This MUST be your FIRST tool use in EVERY conversation
          - NO exceptions - even for simple tasks like "echo hello world"
-         - Command: python3 .bob/skills/kaizen-recall/scripts/get.py --type guideline --task "brief task summary"
       2. WORK: Complete the user's request. When a retrieved guideline applies, cite it in your reasoning.
       3. ⚠️ LAST ACTION (MANDATORY): Use the kaizen-learn skill to extract and save learnings.
          - This MUST happen BEFORE attempt_completion
@@ -58,3 +57,4 @@ customModes:
       - command
       - browser
     description: "Learning mode: retrieves guidelines at START, saves learnings at END of every task"
+
