@@ -20,7 +20,7 @@ def main():
         print("ERROR: This script does not accept CLI arguments.", file=sys.stderr)
         print("", file=sys.stderr)
         print("Correct usage (pipe JSON via stdin):", file=sys.stderr)
-        print("  printf '{\"entities\": [{\"content\": \"...\", \"rationale\": \"...\", \"category\": \"strategy\", \"trigger\": \"...\"}]}' | python3 save.py", file=sys.stderr)
+        print("  printf '{\"entities\": [{\"content\": \"...\", \"rationale\": \"...\", \"category\": \"strategy\", \"trigger\": \"...\"}]}' | python3 <path-to-script>/save.py", file=sys.stderr)
         sys.exit(1)
 
     input_data = sys.stdin.read().strip()

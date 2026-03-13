@@ -13,8 +13,9 @@ Before beginning your work for the user, you must fetch existing guidelines rela
 
 **Command to run:**
 ```bash
-python3 .bob/skills/kaizen-recall/scripts/get.py --type guideline --task "<brief summary of the user's goal>"
+python3 <path-to-skill-dir>/scripts/get.py --type guideline --task "<brief summary of the user's goal>"
 ```
+(If `python3` is not found, use `python` instead)
 
 **⚠️ REQUIRED PARAMETERS:**
 - `--type guideline` - MUST be included (specifies entity type to retrieve)

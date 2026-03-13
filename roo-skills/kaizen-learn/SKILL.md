@@ -55,8 +55,10 @@ If no candidates pass all three criteria, output an empty entities array (`{"ent
 Before generating new entities, check what already exists to avoid near-duplicates:
 
 ```bash
-python3 .bob/skills/kaizen-recall/scripts/get.py --type guideline --task "<brief summary>"
+```bash
+python3 <path-to-kaizen-recall-dir>/scripts/get.py --type guideline --task "<brief summary>"
 ```
+*(Use `python` if `python3` isn't found)*
 
 If the insight you're about to save is already covered by an existing entity — even if worded differently — **do not create a near-duplicate**. Instead, only create a new entity if it adds genuinely new information not captured by any existing entity.
 
@@ -142,13 +144,15 @@ After generating the entities JSON:
 
 **✅ CORRECT SYNTAX (stdin pipe):**
 ```bash
-printf '{"entities": [...]}' | python3 .bob/skills/kaizen-learn/scripts/save.py
+```bash
+printf '{"entities": [...]}' | python3 <path-to-kaizen-learn-dir>/scripts/save.py
 ```
+*(Use `python` if `python3` isn't found)*
 
 **❌ WRONG SYNTAX (CLI arguments are NOT supported):**
 ```bash
 # ⚠️ NEVER DO THIS - The script does NOT accept --task, --outcome, or any CLI arguments:
-python3 .bob/skills/kaizen-learn/scripts/save.py --task "..." --outcome "..."
+python3 <path-to-kaizen-learn-dir>/scripts/save.py --task "..." --outcome "..."
 
 # This will produce an error like:
 # "ERROR: This script does not accept CLI arguments."
@@ -158,7 +162,7 @@ python3 .bob/skills/kaizen-learn/scripts/save.py --task "..." --outcome "..."
 **❌ WRONG SYNTAX (JSON parsing error):**
 ```bash
 # DO NOT DO THIS - escaped quotes break JSON parsing:
-printf '{"entities": [{"content": "Use \"quotes\" here"}]}' | python3 .bob/skills/kaizen-learn/scripts/save.py
+printf '{"entities": [{"content": "Use \"quotes\" here"}]}' | python3 <path-to-kaizen-learn-dir>/scripts/save.py
 # Single-quoted strings pass backslashes literally, breaking JSON
 ```
 
