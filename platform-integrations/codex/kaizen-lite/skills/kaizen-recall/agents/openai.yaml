@@ -1,0 +1,5 @@
+interface:
+  display_name: "Kaizen Recall"
+  short_description: "Load stored Kaizen guidance for the current task."
+policy:
+  allow_implicit_invocation: false

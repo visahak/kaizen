@@ -1,0 +1,5 @@
+interface:
+  display_name: "Kaizen Learn"
+  short_description: "Save high-signal Kaizen learnings from the task."
+policy:
+  allow_implicit_invocation: false

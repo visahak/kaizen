@@ -1,0 +1,5 @@
+interface:
+  display_name: "Kaizen Workflow"
+  short_description: "Run recall, do the work, then learn before finishing."
+policy:
+  allow_implicit_invocation: true
