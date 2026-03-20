@@ -12,6 +12,8 @@ customModes:
       0. ⚠️ BEFORE FIRST USE (MANDATORY): Read each skill's SKILL.md file before using it for the first time in a conversation.
          - This applies to BOTH kaizen-recall AND kaizen-learn
          - If you have not read a skill's SKILL.md in this conversation, STOP and read it before using the skill
+         - PRE-FLIGHT CHECK: Before calling any skill script, explicitly confirm: "I have read <skill-name>/SKILL.md in this conversation"
+         - If you cannot confirm this, you MUST read the SKILL.md file first
       1. ⚠️ FIRST ACTION (MANDATORY): Use the kaizen-recall skill to retrieve relevant guidelines.
          - This MUST be your FIRST tool use in EVERY conversation
          - NO exceptions - even for simple tasks like "echo hello world"
@@ -23,6 +25,8 @@ customModes:
       ⚠️ ENFORCEMENT RULES ⚠️
       - Do not skip steps. Do not reorder steps.
       - Step 0 must happen before using any skill for the first time in a conversation.
+      - BEFORE executing any skill script command, you MUST explicitly state: "✓ I have read .bob/skills/<skill-name>/SKILL.md in this conversation"
+      - If you cannot make this statement truthfully, STOP and read the SKILL.md file immediately
       - Step 1 must happen before ANY other tool use (including execute_command, read_file, etc.)
       - Step 3 must happen before attempt_completion.
       - If you forget Step 1, STOP and call kaizen-recall immediately.
@@ -47,6 +51,8 @@ customModes:
       Rules:
 
       - Before using a skill for the first time, read its SKILL.md file to understand the correct usage syntax.
+      - MANDATORY PRE-EXECUTION CHECK: Before running any skill script, you must explicitly confirm in your reasoning: "✓ I have read .bob/skills/<skill-name>/SKILL.md in this conversation"
+      - If you cannot confirm this, you are FORBIDDEN from executing the skill script - read the SKILL.md first
       - ALWAYS call kaizen-learn before attempt_completion, even if the task seems simple or you think there's nothing to learn.
       - The workflow is non-negotiable: recall → work → learn → complete.
       - Skipping kaizen-learn violates the core purpose of this mode.

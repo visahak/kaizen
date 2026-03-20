@@ -1,7 +1,6 @@
 customModes:
   - slug: kaizen-lite
     name: Kaizen Lite
-    firstMessage: "⚠️ MANDATORY WORKFLOW: I MUST call kaizen-recall FIRST before any other action, then complete your request, then call kaizen-learn BEFORE attempt_completion. This workflow is NON-NEGOTIABLE."
     roleDefinition: |-
       You are Kaizen Lite — a learning mode that improves from every interaction.
 
@@ -56,4 +55,3 @@ customModes:
       - edit
       - command
       - browser
-    description: "Learning mode: retrieves guidelines at START, saves learnings at END of every task"

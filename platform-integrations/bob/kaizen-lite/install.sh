@@ -15,12 +15,14 @@ NC='\033[0m' # No Color
 
 # Get script directory (roo-skills) and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Define paths
 SOURCE_SKILLS_DIR="$SCRIPT_DIR/skills"
+SOURCE_COMMANDS_DIR="$SCRIPT_DIR/commands"
 TARGET_DIR="${1:-$PROJECT_ROOT/.bob}"
 TARGET_SKILLS_DIR="$TARGET_DIR/skills"
+TARGET_COMMANDS_DIR="$TARGET_DIR/commands"
 SOURCE_MODES_FILE="$SCRIPT_DIR/custom_modes.yaml"
 TARGET_MODES_FILE="$TARGET_DIR/custom_modes.yaml"
 
@@ -139,8 +141,33 @@ else
     fi
 fi
 
+# Install commands
+echo -e "\n${BLUE}Step 3: Installing commands...${NC}"
+
+if [ -d "$SOURCE_COMMANDS_DIR" ]; then
+    if [ ! -d "$TARGET_COMMANDS_DIR" ]; then
+        echo -e "${YELLOW}Creating $TARGET_COMMANDS_DIR directory...${NC}"
+        mkdir -p "$TARGET_COMMANDS_DIR"
+    fi
+    
+    cmds_copied=0
+    for cmd_file in "$SOURCE_COMMANDS_DIR"/*; do
+        if [ -f "$cmd_file" ]; then
+            cmd_name=$(basename "$cmd_file")
+            echo -e "${BLUE}  Installing command: $cmd_name${NC}"
+            cp "$cmd_file" "$TARGET_COMMANDS_DIR/"
+            echo -e "${GREEN}  ✓ Installed $cmd_name${NC}"
+            cmds_copied=$((cmds_copied + 1))
+        fi
+    done
+    echo -e "\n${GREEN}Installed $cmds_copied command(s)${NC}"
+else
+    echo -e "${YELLOW}Warning: commands directory not found at $SOURCE_COMMANDS_DIR${NC}"
+    echo -e "${YELLOW}Skipping commands installation...${NC}"
+fi
+
 # Verify installation
-echo -e "\n${BLUE}Step 3: Verifying installation...${NC}"
+echo -e "\n${BLUE}Step 4: Verifying installation...${NC}"
 
 # Check skills
 echo -e "\n${BLUE}Installed skills in target directory:${NC}"
@@ -166,6 +193,15 @@ if [ -d "$TARGET_SKILLS_DIR" ]; then
     done
 else
     echo -e "${RED}Error: .bob/skills directory not found${NC}"
+fi
+
+# Check commands
+echo -e "\n${BLUE}Installed commands in target directory:${NC}"
+if [ -d "$TARGET_COMMANDS_DIR" ]; then
+    cmd_count=$(find "$TARGET_COMMANDS_DIR" -type f | wc -l | tr -d ' ')
+    echo -e "  ${GREEN}✓${NC} $cmd_count command(s) found"
+else
+    echo -e "  ${YELLOW}No commands installed or directory missing${NC}"
 fi
 
 # Check modes file
