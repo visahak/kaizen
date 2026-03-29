@@ -3,7 +3,7 @@
 ## Overview
 
 `install.sh` is a single-file bash/Python hybrid installer that sets up Kaizen integrations
-into a user's project directory for one or more supported platforms: **Bob**, **Roo**, and **Claude**.
+into a user's project directory for one or more supported platforms: **Bob**, **Roo**, **Claude**, and **Codex**.
 
 It is designed to be run:
 - Locally from within the kaizen repo: `./install.sh install`
@@ -48,13 +48,13 @@ Commands:
   status     Show what is currently installed
 
 install options:
-  --platform {bob,roo,claude,all}   Platform to install (default: auto-detect + prompt)
+  --platform {bob,roo,claude,codex,all}   Platform to install (default: auto-detect + prompt)
   --mode     {lite,full}            Installation mode for bob (default: lite)
   --dir      DIR                    Target project directory (default: current working dir)
   --dry-run                         Preview changes without modifying files
 
 uninstall options:
-  --platform {bob,roo,claude,all}   Platform to uninstall (default: prompt)
+  --platform {bob,roo,claude,codex,all}   Platform to uninstall (default: prompt)
   --dir      DIR                    Target project directory (default: current working dir)
   --dry-run                         Preview changes without modifying files
 ```
@@ -70,6 +70,7 @@ Detection checks in order (any match = platform considered available):
 | bob      | `.bob/` dir exists in target dir, OR `bob` on PATH |
 | roo      | `.roomodes` file exists in target dir, OR `roo` or `roo-code` on PATH |
 | claude   | `.claude/` dir exists in target dir, OR `claude` on PATH |
+| codex    | `.codex/` dir exists in target dir, OR `.agents/plugins/marketplace.json` exists, OR `codex` on PATH |
 
 If no `--platform` flag is given, the script runs interactively: shows detected platforms,
 lets the user pick one, multiple, or all.
@@ -118,6 +119,18 @@ Source: `platform-integrations/claude/plugins/kaizen-lite/`
    ```
 3. No file-system fallback for Claude (plugin system manages its own state)
 
+### Codex — Lite Mode
+
+Source: `platform-integrations/codex/plugins/kaizen-lite/`
+Target: project directory
+
+1. Copy `platform-integrations/codex/plugins/kaizen-lite/` → `plugins/kaizen-lite/` in the target project
+2. Copy shared lib from `platform-integrations/claude/plugins/kaizen-lite/lib/` → `plugins/kaizen-lite/lib/`
+3. Upsert plugin entry `kaizen-lite` into `.agents/plugins/marketplace.json`
+4. Upsert a `UserPromptSubmit` hook into `.codex/hooks.json` that runs the Kaizen recall helper script
+
+Codex is currently implemented only in lite mode. Full mode is reserved for future MCP-backed work.
+
 ---
 
 ## Uninstall Actions
@@ -138,11 +151,16 @@ Source: `platform-integrations/claude/plugins/kaizen-lite/`
 1. Attempt `claude plugin uninstall kaizen-lite` via subprocess
 2. If that fails, print manual instructions
 
+### Codex
+1. Remove `plugins/kaizen-lite/`
+2. Remove the `kaizen-lite` entry from `.agents/plugins/marketplace.json`
+3. Remove the Kaizen `UserPromptSubmit` hook from `.codex/hooks.json`
+
 ---
 
 ## File Operation Strategies
 
-### JSON Strategy (mcp.json, .roomodes)
+### JSON Strategy (mcp.json, .roomodes, marketplace.json, hooks.json)
 
 All JSON writes use atomic read-modify-write:
 1. Read existing file (or start with `{}` if not found)
@@ -150,9 +168,9 @@ All JSON writes use atomic read-modify-write:
 3. Write to `<path>.kaizen.tmp`
 4. `os.replace(tmp, path)` — atomic on POSIX
 
-**Key upsert** (`mcpServers.kaizen`): navigate nested keys via `dict.setdefault`, set leaf value.
+**Key upsert** (`mcpServers.kaizen`, `hooks.UserPromptSubmit` scaffolding): navigate nested keys via `dict.setdefault`, set leaf value.
 
-**Array upsert** (`.roomodes` `customModes`): iterate array, find item where `item["slug"] == target_slug`,
+**Array upsert** (`.roomodes` `customModes`, `marketplace.json` `plugins`): iterate array, find item where the identity key matches,
 replace in-place; append if not found.
 
 **Array remove**: filter array by `item["slug"] != target_slug`, write back.
@@ -190,6 +208,7 @@ All operations are safe to run multiple times:
 - JSON writes upsert (replace-if-exists, insert-if-not)
 - YAML writes check for sentinel before appending
 - Claude plugin install is idempotent by the Claude CLI itself
+- Codex marketplace and hook writes replace matching Kaizen entries and preserve user-owned entries
 
 ---
 

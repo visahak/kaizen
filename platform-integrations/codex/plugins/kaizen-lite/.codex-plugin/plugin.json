@@ -1,0 +1,29 @@
+{
+  "name": "kaizen-lite",
+  "version": "1.0.5",
+  "description": "Recall and save Kaizen guidelines in Codex without MCP.",
+  "author": {
+    "name": "Vinod Muthusamy",
+    "url": "https://github.com/AgentToolkit/kaizen"
+  },
+  "homepage": "https://github.com/AgentToolkit/kaizen",
+  "repository": "https://github.com/AgentToolkit/kaizen",
+  "license": "MIT",
+  "keywords": ["kaizen", "codex", "guidelines", "memory"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Kaizen Lite",
+    "shortDescription": "Recall and save reusable Kaizen guidelines.",
+    "longDescription": "A lightweight Codex plugin that helps you save reusable guidelines from successful sessions and recall them automatically on new prompts.",
+    "developerName": "AgentToolkit",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/AgentToolkit/kaizen",
+    "defaultPrompt": [
+      "Recall Kaizen guidelines for this task.",
+      "Save new Kaizen learnings from this session.",
+      "Show me the guidelines stored for this repo."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

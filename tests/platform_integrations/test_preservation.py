@@ -212,6 +212,61 @@ class TestRooPreservation:
 
 
 @pytest.mark.platform_integrations
+class TestCodexPreservation:
+    """Test that Codex installation preserves existing user data."""
+
+    def test_preserves_existing_marketplace_entries(self, temp_project_dir, install_runner, codex_fixtures, file_assertions):
+        """Install kaizen when user already has marketplace entries - they must be preserved."""
+        codex_fixtures.create_existing_plugin(temp_project_dir)
+        marketplace_file = codex_fixtures.create_existing_marketplace(temp_project_dir)
+        original_data = json.loads(marketplace_file.read_text())
+
+        install_runner.run("install", platform="codex")
+
+        file_assertions.assert_valid_json(marketplace_file)
+        current_data = json.loads(marketplace_file.read_text())
+
+        custom_plugins = [entry for entry in current_data["plugins"] if entry["name"] == "my-codex-plugin"]
+        assert len(custom_plugins) == 1, "User's existing plugin entry was removed or duplicated!"
+        assert custom_plugins[0] == original_data["plugins"][0]
+
+        kaizen_plugins = [entry for entry in current_data["plugins"] if entry["name"] == "kaizen-lite"]
+        assert len(kaizen_plugins) == 1, "Kaizen plugin entry missing from marketplace.json"
+
+    def test_preserves_existing_hooks_and_plugin_files(self, temp_project_dir, install_runner, codex_fixtures, file_assertions):
+        """Install kaizen when user already has hooks and plugins - they must be preserved."""
+        custom_plugin = codex_fixtures.create_existing_plugin(temp_project_dir)
+        plugin_json = custom_plugin / ".codex-plugin" / "plugin.json"
+        original_plugin_content = plugin_json.read_text()
+        hooks_file = codex_fixtures.create_existing_hooks(temp_project_dir)
+
+        install_runner.run("install", platform="codex")
+
+        file_assertions.assert_file_unchanged(plugin_json, original_plugin_content)
+
+        current_hooks = json.loads(hooks_file.read_text())
+        session_start_hooks = current_hooks["hooks"]["SessionStart"]
+        assert len(session_start_hooks) == 1, "User's SessionStart hook was removed!"
+
+        prompt_hooks = current_hooks["hooks"]["UserPromptSubmit"]
+        custom_prompt_hooks = [
+            hook
+            for group in prompt_hooks
+            for hook in group.get("hooks", [])
+            if hook.get("command") == "python3 ~/.codex/hooks/custom_prompt_memory.py"
+        ]
+        assert len(custom_prompt_hooks) == 1, "User's UserPromptSubmit hook was removed!"
+
+        kaizen_hooks = [
+            hook
+            for group in prompt_hooks
+            for hook in group.get("hooks", [])
+            if "plugins/kaizen-lite/skills/recall/scripts/retrieve_entities.py" in hook.get("command", "")
+        ]
+        assert len(kaizen_hooks) == 1, "Kaizen UserPromptSubmit hook was not added!"
+
+
+@pytest.mark.platform_integrations
 class TestMultiPlatformPreservation:
     """Test that installing multiple platforms preserves all user data."""
 
