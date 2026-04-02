@@ -125,28 +125,35 @@ If you’re experimenting with Evolve or exploring on‑the‑job learning for a
 
 ### Running Tests
 
-```bash
-uv run pytest
-```
+The test suite is organized into 4 cleanly isolated tiers depending on infrastructure requirements:
 
-#### Phoenix Sync Tests
+1. **Default Local Suite**
+   Runs both fast logic tests (`unit`) and filesystem script verifications (`platform_integrations`).
+   ```bash
+   uv run pytest
+   ```
 
-Tests for the Phoenix trajectory sync functionality are **skipped by default** since they require familiarity with the Phoenix integration. To include them:
+2. **Unit Tests (Only)**
+   Fast, fully-mocked tests verifying core logic and offline pipeline schemas.
+   ```bash
+   uv run pytest -m unit
+   ```
 
-```bash
-# Run all tests including Phoenix tests
-uv run pytest --run-phoenix
+3. **Platform Integration Tests**
+   Fast filesystem-level integration tests verifying local tool installation and idempotency.
+   ```bash
+   uv run pytest -m platform_integrations
+   ```
 
-# Run only Phoenix tests
-uv run pytest -m phoenix
-```
+4. **End-to-End Infrastructure Tests**
+   Heavy tests that autonomously spin up a background Phoenix server and simulate full agent workflows.
+   ```bash
+   uv run pytest -m e2e --run-e2e
+   ```
+   *(See [docs/LOW_CODE_TRACING.md](docs/LOW_CODE_TRACING.md#end-to-end-verification) for more details).*
 
-#### End-to-End (E2E) Low-Code Verification
-
-To run the full end-to-end verification pipeline (Agent -> Trace -> Tip):
-
-```bash
-EVOLVE_E2E=true uv run pytest tests/e2e/test_e2e_pipeline.py -s
-```
-
-See [docs/LOW_CODE_TRACING.md](docs/LOW_CODE_TRACING.md#end-to-end-verification) for more details.
+5. **LLM Evaluation Tests**
+   Tests needing active LLM inference to test resolution pipelines (requires LLM API keys).
+   ```bash
+   uv run pytest -m llm
+   ```
