@@ -4,6 +4,8 @@ import re
 import os
 import datetime
 import pytest
+import urllib.request
+import urllib.error
 from evolve.config.phoenix import phoenix_settings
 
 # Configuration
@@ -18,8 +20,7 @@ AGENTS_TO_TEST = [
     {"name": "manual_phoenix", "script": "examples/low_code/manual_phoenix_demo.py", "project_prefix": "verify-manual"},
     {"name": "simple_openai", "script": "examples/low_code/simple_openai.py", "project_prefix": "verify-simple-openai"},
 ]
-import urllib.request
-import urllib.error
+
 
 @pytest.fixture(scope="session", autouse=True)
 def phoenix_server():
@@ -34,26 +35,18 @@ def phoenix_server():
         pass
 
     import sys
+
     print("\nStarting local Phoenix server for E2E tests...")
-    
+
     env = os.environ.copy()
     env["PHOENIX_PORT"] = "6006"
-    
+
     # Start it using the current python executable to avoid 'uv run' overhead
     # We use run_in_thread=True and a sleepy while loop because run_in_thread=False
     # can crash the fastAPI uvicorn startup in some MacOS environments.
-    script = (
-        "import phoenix as px; import time; px.launch_app(run_in_thread=True); "
-        "import sys; sys.stdout.flush(); time.sleep(86400)"
-    )
+    script = "import phoenix as px; import time; px.launch_app(run_in_thread=True); import sys; sys.stdout.flush(); time.sleep(86400)"
 
-    proc = subprocess.Popen(
-        [sys.executable, "-c", script],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+    proc = subprocess.Popen([sys.executable, "-c", script], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
 
     # Poll until the server is responsive
     max_retries = 30
@@ -125,7 +118,7 @@ def test_e2e_pipeline_agent(agent_config):
     try:
         result = subprocess.run(["uv", "run", "python", script_path], env=env, capture_output=True, text=True, timeout=90)
     except subprocess.TimeoutExpired as e:
-        print(f"❌ Agent execution timed out after 90s")
+        print("❌ Agent execution timed out after 90s")
         # Still try to capture what we can from stdout/stderr if possible
         stdout = e.stdout if e.stdout else ""
         stderr = e.stderr if e.stderr else ""
@@ -217,7 +210,7 @@ except Exception as e:
                     break
                 time.sleep(0.1)  # Avoid tight loop if no output but process alive
                 continue
-            
+
             output_lines.append(line)
             line_stripped = line.strip()
             # print(f"[Sync] {line_stripped}") # Optional: verbose logging
