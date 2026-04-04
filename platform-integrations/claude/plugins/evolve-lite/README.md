@@ -123,7 +123,7 @@ System tools like exiftool may not be available
 
 ## Environment Variables
 
-- `EVOLVE_ENTITIES_DIR`: Override the default entities directory location
+- `EVOLVE_DIR`: Override the default `.evolve` directory location (entities, trajectories, config, etc. are stored here)
 
 ## Verification
 

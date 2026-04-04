@@ -53,37 +53,34 @@ def log(component, message):
 # ---------------------------------------------------------------------------
 
 
+def get_evolve_dir():
+    """Return the .evolve root directory.
+
+    Uses ``EVOLVE_DIR`` env var if set, otherwise ``.evolve/`` in cwd.
+    Does not create the directory.
+    """
+    env_dir = os.environ.get("EVOLVE_DIR")
+    if env_dir:
+        return Path(env_dir)
+    return Path(".evolve")
+
+
 def find_entities_dir():
     """Locate the entities directory.
 
-    Search order:
-      1. ``EVOLVE_ENTITIES_DIR`` env var (authoritative, no fallback)
-      2. ``.evolve/entities/`` (cwd)
-
-    Returns:
-        Path to the directory if it exists, else ``None``.
+    Uses :func:`get_evolve_dir` to determine the base directory, then
+    returns the ``entities/`` subdirectory Path if it exists, else ``None``.
     """
-    env_dir = os.environ.get("EVOLVE_ENTITIES_DIR")
-    if env_dir:
-        p = Path(env_dir)
-        return p if p.is_dir() else None
-
-    c = Path(".evolve") / "entities"
+    c = get_evolve_dir() / "entities"
     return c if c.is_dir() else None
 
 
 def get_default_entities_dir():
     """Return (and create) the default entities directory.
 
-    Prefers ``EVOLVE_ENTITIES_DIR``, falls back to ``.evolve/entities/``.
+    Uses ``EVOLVE_DIR`` if set, falls back to ``.evolve/entities/``.
     """
-    env_dir = os.environ.get("EVOLVE_ENTITIES_DIR")
-    if env_dir:
-        base = Path(env_dir)
-        base.mkdir(parents=True, exist_ok=True)
-        return base.resolve()
-
-    base = Path(".evolve") / "entities"
+    base = get_evolve_dir() / "entities"
     base.mkdir(parents=True, exist_ok=True)
     return base.resolve()
 
