@@ -2,6 +2,10 @@
 Agentic IDEs like Claude Code often repeat the same mistakes over and over again because they start from fresh every time. Using Evolve, we can alleviate this problem.
 In this tutorial, we will use Evolve and Claude Code to create a Python script to automate a simple task. Using Evolve, we will then instruct Claude Code that it should use this script in the future for similar tasks.
 
+## Video Tutorial
+<div class="video-wrapper">
+    <iframe width="1280" height="720" src="https://www.youtube.com/embed/Hl_tgUdQWrc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+</div>
 
 ## Requirements
 - [`uv` installed](https://docs.astral.sh/uv/getting-started/installation/)

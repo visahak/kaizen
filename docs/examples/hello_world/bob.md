@@ -1,6 +1,11 @@
 # "Hello World" with Evolve and IBM Bob
 In this tutorial, we will create a simple scaffolding project using `uv` and set up IBM Bob with Evolve.
 
+## Video Tutorial
+<div class="video-wrapper">
+    <iframe width="1280" height="720" src="https://www.youtube.com/embed/YlTJoSJ4eDg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+</div>
+
 ## Requirements
 - [`uv` installed](https://docs.astral.sh/uv/getting-started/installation/)
 - IBM Bob IDE installed.
