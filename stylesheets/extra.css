@@ -156,13 +156,6 @@
           mask-image: var(--md-admonition-icon--agent-message);
 }
 
-/* Ensure body text uses dark color inside the gray bubble */
-.md-typeset .admonition.agent-message p,
-.md-typeset .admonition.agent-message li,
-.md-typeset .admonition.agent-message code {
-  color: var(--agent-message-text-color);
-}
-
 /* Dark mode adjustments */
 [data-md-color-scheme="slate"] .md-typeset .admonition.agent-message,
 [data-md-color-scheme="slate"] .md-typeset details.agent-message {
