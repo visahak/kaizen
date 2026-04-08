@@ -90,7 +90,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#starter-example-with-evolve-and-codex" class="md-skip">
+        <a href="#starter-example-with-evolve-and-codex-cli" class="md-skip">
           Skip to content
         </a>
       
@@ -737,10 +737,43 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#video-tutorial" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Video Tutorial
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-0-run-codex-in-a-docker-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 0: Run Codex in a docker container
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-install-evolve-lite-plugin-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Install Evolve-Lite Plugin Repo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-running-in-codex-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Running in Codex CLI
       
     </span>
   </a>
@@ -1343,10 +1376,43 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#video-tutorial" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Video Tutorial
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-0-run-codex-in-a-docker-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 0: Run Codex in a docker container
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-install-evolve-lite-plugin-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Install Evolve-Lite Plugin Repo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-running-in-codex-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Running in Codex CLI
       
     </span>
   </a>
@@ -1421,11 +1487,81 @@
   
 
 
-<h1 id="starter-example-with-evolve-and-codex">Starter Example with Evolve and Codex<a class="headerlink" href="#starter-example-with-evolve-and-codex" title="Permanent link">&para;</a></h1>
-<p>In this tutorial, we will set up Codex with Evolve to demonstrate how agents can learn from past sessions.</p>
-<h2 id="video-tutorial">Video Tutorial<a class="headerlink" href="#video-tutorial" title="Permanent link">&para;</a></h2>
+<h1 id="starter-example-with-evolve-and-codex-cli">Starter Example with Evolve and Codex CLI<a class="headerlink" href="#starter-example-with-evolve-and-codex-cli" title="Permanent link">&para;</a></h1>
+<p>Agentic IDEs like Codex CLI often repeat the same mistakes over and over again because they start from fresh every time. Using Evolve, we can alleviate this problem.
+In this tutorial, we will use Evolve and Codex CLI to create a Python script to automate a simple task. Using Evolve, we will then instruct Codex CLI that it should use this script in the future for similar tasks.</p>
 <div class="video-wrapper">
     <iframe width="1280" height="720" src="https://www.youtube.com/embed/IBc59bLjdi8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+</div>
+
+<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://docs.astral.sh/uv/getting-started/installation/"><code>uv</code> installed</a></li>
+<li><a href="https://codex.com/product/codex-code">Codex CLI</a> installed.</li>
+<li><a href="https://docs.docker.com/get-docker/">Docker</a> installed.</li>
+</ul>
+<h2 id="step-0-run-codex-in-a-docker-container">Step 0: Run Codex in a docker container<a class="headerlink" href="#step-0-run-codex-in-a-docker-container" title="Permanent link">&para;</a></h2>
+<p>The following commands download and run the official node image which is capable of installing Codex CLI.</p>
+<div class="admonition note">
+<p class="admonition-title">Optional</p>
+<p>This is for consistency purposes so that the demo works. You can skip this step, but the demo may not work as intended.</p>
+</div>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span>--security-opt<span class="w"> </span><span class="nv">seccomp</span><span class="o">=</span>unconfined<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span>--security-opt<span class="w"> </span><span class="nv">apparmor</span><span class="o">=</span>unconfined<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span>node:22-slim<span class="w"> </span>bash
+</code></pre></div>
+Then inside the docker container, install codex:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>--no-install-recommends<span class="w"> </span>curl<span class="w"> </span>ca-certificates<span class="w"> </span>python3
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>npm<span class="w"> </span>i<span class="w"> </span>-g<span class="w"> </span>@openai/codex
+</code></pre></div></p>
+<h2 id="step-1-install-evolve-lite-plugin-repo">Step 1: Install Evolve-Lite Plugin Repo<a class="headerlink" href="#step-1-install-evolve-lite-plugin-repo" title="Permanent link">&para;</a></h2>
+<p>Install Evolve by following the <a href="../../../installation/#codex-code-plugin-marketplace">installation instructions</a></p>
+<h2 id="step-2-running-in-codex-cli">Step 2: Running in Codex CLI<a class="headerlink" href="#step-2-running-in-codex-cli" title="Permanent link">&para;</a></h2>
+<p>In a terminal, run:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>codex<span class="w"> </span><span class="c1"># Sign in with a device code if in the docker container</span>
+</code></pre></div>
+Install the Evolve-Lite plugin
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># in codex</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/plugins
+</code></pre></div>
+Select the <code>Evolve Lite</code> plugin and install it.</p>
+<div class="admonition user-message">
+<p class="admonition-title">Let's Ask Codex</p>
+<p>Can you download this image?</p>
+<p><img alt="A sample image that should be downloaded" src="../../../assets/sample.jpg" /></p>
+</div>
+<div class="admonition user-message">
+<p class="admonition-title">Let's Ask Codex</p>
+<p>where was the photo @tmp/sample.jpg taken? use exif metadata.</p>
+</div>
+<div class="admonition agent-message">
+<p class="admonition-title">A Likely Codex Response</p>
+<p>I need access to some tools...</p>
+</div>
+<div class="admonition user-message">
+<p class="admonition-title">Let's Ask Codex</p>
+<p>summarize what steps you took, including tool calls, failed attempts, and reasoning guidelines.</p>
+</div>
+<div class="admonition agent-message">
+<p class="admonition-title">A Likely Codex Response</p>
+<p>Codex probably attempted to use a system utility like <code>exiftool</code>, but because we intentionally ran it in a docker container, that utility wasn't available, so Codex created a script to read the exif data instead.</p>
+</div>
+<div class="admonition user-message">
+<p class="admonition-title">Learning From the Past</p>
+<p><code>$evolve-lite:learn</code> will produce new guidelines from this experience, if they were not generated already.</p>
+</div>
+<div class="admonition system-message">
+<p class="admonition-title">One Eternity Later</p>
+<p>Reset the conversation history using <code>/clear</code></p>
+</div>
+<div class="admonition user-message">
+<p class="admonition-title">Let's Ask Codex</p>
+<p>what focal length was used to take the photo @tmp/sample.jpg? use exif metadata</p>
+</div>
+<div class="admonition agent-message">
+<p class="admonition-title">A Likely Codex Response</p>
+<p>This time, Codex learns from the guidelines produced by Evolve to use the generated script directly saving time.</p>
 </div>
 
 
