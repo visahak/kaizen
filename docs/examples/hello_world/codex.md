@@ -60,7 +60,7 @@ Select the `Evolve Lite` plugin and install it.
 !!! agent-message "A Likely Codex Response"
     Codex probably attempted to use a system utility like `exiftool`, but because we intentionally ran it in a docker container, that utility wasn't available, so Codex created a script to read the exif data instead.
 
-!!! user-message "Learning From the Past"
+!!! system-message "Learning From the Past"
     `$evolve-lite:learn` will produce new guidelines from this experience, if they were not generated already.
 
 !!! system-message "One Eternity Later"
