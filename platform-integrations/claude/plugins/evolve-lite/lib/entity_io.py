@@ -235,6 +235,61 @@ def load_all_entities(entities_dir):
     return entities
 
 
+def _parse_frontmatter_only(path):
+    """Parse only the YAML frontmatter block of a markdown file.
+
+    Returns a dict of frontmatter key/value pairs. Cheaper than
+    :func:`markdown_to_entity` when the body content is not needed.
+    """
+    entry = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            first = f.readline()
+            if not first.startswith("---"):
+                return entry
+            for line in f:
+                if line.startswith("---"):
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                key, _, value = line.partition(":")
+                key = key.strip()
+                value = value.strip()
+                if key and value:
+                    entry[key] = value
+    except (OSError, UnicodeError):
+        pass
+    return entry
+
+
+def load_manifest(root_dir):
+    """Build a lightweight manifest of entities under *root_dir*.
+
+    Parses frontmatter only — skips body content. Each manifest entry is a
+    dict with ``path`` (absolute), ``slug`` (filename stem), plus any
+    frontmatter keys that are present.
+
+    Entities stored under ``subscribed/{name}/…`` get ``source`` set to the
+    subscription name when frontmatter does not already carry one, so callers
+    can annotate provenance without reading bodies.
+    """
+    root = Path(root_dir)
+    manifest = []
+    for md in sorted(root.glob("**/*.md")):
+        entry = _parse_frontmatter_only(md)
+        try:
+            rel_parts = md.relative_to(root).parts
+        except ValueError:
+            rel_parts = md.parts
+        if rel_parts and rel_parts[0] == "subscribed" and len(rel_parts) > 1:
+            entry.setdefault("source", rel_parts[1])
+        entry["path"] = str(md)
+        entry["slug"] = md.stem
+        manifest.append(entry)
+    return manifest
+
+
 def write_entity_file(directory, entity):
     """Write a single entity as a markdown file under *directory*.
 

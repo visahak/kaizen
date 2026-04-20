@@ -1,26 +1,46 @@
 ---
 name: recall
-description: Retrieves relevant entities from a knowledge base. Designed to be invoked automatically via hooks to inject context-appropriate entities before task execution.
+description: Retrieves relevant entities from a knowledge base. A compact manifest is auto-injected on every user prompt via a UserPromptSubmit hook; Claude Reads the full body of only the entities whose triggers match the current task.
 context: fork
 ---
 
 # Entity Retrieval
 
-## Overview
+## How it works
 
-This skill retrieves relevant entities from a stored knowledge base based on the current task context. It loads all stored entities and presents them to Claude for relevance filtering.
+On every user prompt, the `UserPromptSubmit` hook runs:
 
-## How It Works
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/recall/scripts/retrieve_entities.py
+```
 
-1. Hook fires on user prompt submission
-2. Script reads prompt from stdin (JSON with `prompt` field)
-3. Loads entities from two sources: `.evolve/entities/` (private + subscribed) and `.evolve/public/` (your published guidelines)
-4. Outputs formatted entities to stdout
-5. Claude receives entities as additional context and applies relevant ones
+The script scans `.evolve/entities/` (private + `subscribed/{name}/…`) and `.evolve/public/`, parses only YAML frontmatter (not bodies), and prints a compact manifest to stdout. Claude Code injects that stdout as context before Claude sees the prompt.
 
-## Entities Storage
+Each manifest line has the form:
 
-Entities are loaded from two locations:
+```
+- `<path>` • <type> • <slug> [from: <source>]? • <trigger>
+```
+
+- `path` — absolute or cwd-relative path to the entity markdown file.
+- `type` — `guideline`, `preference`, etc.
+- `slug` — filename stem.
+- `[from: <source>]` — present only for entities subscribed from another user.
+- `trigger` — the condition the entity applies to, or `(no trigger)`.
+
+## What Claude does with the manifest
+
+1. Scans the manifest for triggers that match the current task.
+2. Uses the Read tool on the `path` of each matching entity to load the full body + rationale.
+3. Applies the matching guidelines or preferences while working.
+
+Baseline per-prompt cost is ~20–40 tokens per entity (manifest line). Full-body cost is paid only for entities Claude decides to Read.
+
+## Why this design
+
+The previous version of this hook emitted full entity bodies on every prompt, which grew linearly with both the entity count and the number of subscriptions. The manifest-only design keeps Claude aware of every stored entity while bounding per-prompt cost, so subscriptions and long-lived knowledge bases stay cheap to carry around.
+
+## Storage layout
 
 ```text
 .evolve/entities/
