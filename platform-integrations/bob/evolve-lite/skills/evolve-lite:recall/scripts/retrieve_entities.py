@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retrieve and output entities for Bob to filter."""
+"""Retrieve and output an entity manifest for Bob to expand on demand."""
 
 import sys
 from pathlib import Path
@@ -12,7 +12,7 @@ for parent in current.parents:
         sys.path.insert(0, str(lib_path))
         break
 
-from entity_io import find_entities_dir, get_evolve_dir, markdown_to_entity, log as _log  # noqa: E402
+from entity_io import dedupe_manifest_entries, find_recall_entity_dirs, load_manifest, log as _log  # noqa: E402
 
 
 def log(message):
@@ -20,85 +20,35 @@ def log(message):
 
 
 def format_entities(entities):
-    """Format all entities for Bob to review.
+    """Format a manifest of entities as human-readable markdown for Bob."""
+    header = """## Evolve entity manifest for this task
 
-    Entities that came from a subscribed source have their path recorded in
-    the private ``_source`` key (set by load_entities_with_source). These are
-    annotated with ``[from: {name}]`` so Bob knows their provenance.
-    """
-    header = """## Entities for this task
-
-Review these entities and apply any relevant ones:
+These stored entities are available for this repo. Read only the files whose trigger looks relevant to the user's request:
 
 """
-    items = []
+    lines = []
     for e in entities:
-        content = e.get("content")
-        if not content:
-            continue
-        source = e.get("_source")
-        if source:
-            content = f"[from: {source}] {content}"
-        item = f"- **[{e.get('type', 'general')}]** {content}"
-        if e.get("rationale"):
-            item += f"\n  - _Rationale: {e['rationale']}_"
-        if e.get("trigger"):
-            item += f"\n  - _When: {e['trigger']}_"
-        items.append(item)
-
-    return header + "\n".join(items)
-
-
-def load_entities_with_source(entities_dir):
-    """Glob all .md files under entities_dir and parse each.
-
-    Entities stored under entities/subscribed/{name}/ have ``_source`` set to
-    the subscription name so format_entities can annotate them. The owner field
-    written by publish.py is preserved; _source is just a routing key used
-    internally and is never written to disk.
-    """
-    entities_dir = Path(entities_dir)
-    entities = []
-    for md in sorted(entities_dir.glob("**/*.md")):
-        if md.is_symlink():
-            continue
-        try:
-            entity = markdown_to_entity(md)
-            entity.pop("_source", None)
-            if not entity.get("content"):
-                continue
-            try:
-                rel_parts = md.relative_to(entities_dir).parts
-            except ValueError:
-                rel_parts = md.parts
-            if rel_parts[0] == "subscribed" and len(rel_parts) > 1:
-                entity["_source"] = rel_parts[1]
-            entities.append(entity)
-        except (OSError, UnicodeDecodeError):
-            pass
-    return entities
+        lines.append(f"- `{e['path']}` [{e['type']}] \u2014 {e['trigger']}")
+    return header + "\n".join(lines)
 
 
 def main():
     log("Script started")
 
-    entities_dir = find_entities_dir()
-    log(f"Entities dir: {entities_dir}")
-
     entities = []
-    if entities_dir:
-        entities = load_entities_with_source(entities_dir)
+    recall_dirs = find_recall_entity_dirs()
+    log(f"Recall dirs: {recall_dirs}")
+    for root_dir in recall_dirs:
+        entities.extend(load_manifest(root_dir))
 
-    public_dir = get_evolve_dir() / "public"
-    if public_dir.is_dir():
-        log(f"Loading public entities from: {public_dir}")
-        entities += load_entities_with_source(public_dir)
+    entities = dedupe_manifest_entries(entities)
 
     if not entities:
         log("No entities found")
         return
 
     log(f"Loaded {len(entities)} entities")
+
     output = format_entities(entities)
     print(output)
     log(f"Output {len(output)} chars to stdout")
@@ -106,5 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# Made with Bob
