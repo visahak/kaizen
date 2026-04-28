@@ -218,33 +218,30 @@ def save_trajectory(trajectory_data: str, task_id: str | None = None, owner_id: 
         entities=entities,
         enable_conflict_resolution=False,
     )
-    result = generate_guidelines(messages)
+    results = generate_guidelines(messages)
 
-    if result.guidelines:
-        guideline_metadata_base = {
-            "task_description": result.task_description,
-            "source_task_id": task_id,
-            "creation_mode": "auto-mcp",
-        }
-        if owner_id:
-            guideline_metadata_base["owner_id"] = owner_id
-
+    guideline_entities = [
+        Entity(
+            type="guideline",
+            content=guideline.content,
+            metadata={
+                "task_description": result.task_description,
+                "source_task_id": task_id,
+                "creation_mode": "auto-mcp",
+                **({"owner_id": owner_id} if owner_id else {}),
+                "category": guideline.category,
+                "rationale": guideline.rationale,
+                "trigger": guideline.trigger,
+                "implementation_steps": guideline.implementation_steps,
+            },
+        )
+        for result in results
+        for guideline in result.guidelines
+    ]
+    if guideline_entities:
         get_client().update_entities(
             namespace_id=evolve_config.namespace_id,
-            entities=[
-                Entity(
-                    type="guideline",
-                    content=guideline.content,
-                    metadata={
-                        **guideline_metadata_base,
-                        "category": guideline.category,
-                        "rationale": guideline.rationale,
-                        "trigger": guideline.trigger,
-                        "implementation_steps": guideline.implementation_steps,
-                    },
-                )
-                for guideline in result.guidelines
-            ],
+            entities=guideline_entities,
             enable_conflict_resolution=True,
         )
 

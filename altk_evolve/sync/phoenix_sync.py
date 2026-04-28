@@ -479,34 +479,35 @@ class PhoenixSync:
                 enable_conflict_resolution=False,
             )
 
-        # Generate guidelines from the trajectory
-        result = generate_guidelines(trajectory["messages"])
+        # Generate guidelines from the trajectory (returns one result per subtask)
+        results = generate_guidelines(trajectory["messages"])
 
-        if result.guidelines:
-            guideline_entities = [
-                Entity(
-                    type="guideline",
-                    content=guideline.content,
-                    metadata={
-                        "category": guideline.category,
-                        "rationale": guideline.rationale,
-                        "trigger": guideline.trigger,
-                        "implementation_steps": guideline.implementation_steps,
-                        "source_task_id": trajectory["trace_id"],
-                        "source_span_id": trajectory["span_id"],
-                        "task_description": result.task_description,
-                        "creation_mode": "auto-phoenix",
-                    },
-                )
-                for guideline in result.guidelines
-            ]
+        guideline_entities = [
+            Entity(
+                type="guideline",
+                content=guideline.content,
+                metadata={
+                    "category": guideline.category,
+                    "rationale": guideline.rationale,
+                    "trigger": guideline.trigger,
+                    "implementation_steps": guideline.implementation_steps,
+                    "source_task_id": trajectory["trace_id"],
+                    "source_span_id": trajectory["span_id"],
+                    "task_description": result.task_description,
+                    "creation_mode": "auto-phoenix",
+                },
+            )
+            for result in results
+            for guideline in result.guidelines
+        ]
+        if guideline_entities:
             self.client.update_entities(
                 namespace_id=self.namespace_id,
                 entities=guideline_entities,
                 enable_conflict_resolution=True,
             )
 
-        return len(result.guidelines)
+        return sum(len(r.guidelines) for r in results)
 
     def sync(
         self,

@@ -30,7 +30,7 @@ def test_save_trajectory_metadata_injection(mock_get_client):
         mock_guideline.trigger = "writing code"
         mock_result.guidelines = [mock_guideline]
         mock_result.task_description = "Add feature"
-        mock_generate_guidelines.return_value = mock_result
+        mock_generate_guidelines.return_value = [mock_result]
 
         trajectory_data = json.dumps([{"role": "user", "content": "hi"}])
         task_id = str(uuid.uuid4())

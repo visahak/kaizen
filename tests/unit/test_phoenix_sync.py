@@ -520,7 +520,7 @@ class TestSync:
         mock_urlopen.return_value = mock_response
 
         phoenix_sync.client.search_entities.return_value = []
-        mock_generate_guidelines.return_value = GuidelineGenerationResult(guidelines=[], task_description="Task description unknown")
+        mock_generate_guidelines.return_value = [GuidelineGenerationResult(guidelines=[], task_description="Task description unknown")]
 
         result = phoenix_sync.sync(limit=10, include_errors=True)
 
@@ -582,10 +582,12 @@ class TestSync:
         mock_guideline2.category = "optimization"
         mock_guideline2.rationale = "Guideline 2 rationale"
         mock_guideline2.trigger = "Guideline 2 trigger"
-        mock_generate_guidelines.return_value = GuidelineGenerationResult(
-            guidelines=[mock_guideline1, mock_guideline2],
-            task_description="Hello",
-        )
+        mock_generate_guidelines.return_value = [
+            GuidelineGenerationResult(
+                guidelines=[mock_guideline1, mock_guideline2],
+                task_description="Hello",
+            )
+        ]
 
         result = phoenix_sync.sync(limit=10)
 
@@ -647,7 +649,7 @@ class TestSync:
         mock_guideline.category = "strategy"
         mock_guideline.rationale = "Guideline rationale"
         mock_guideline.trigger = "Guideline trigger"
-        mock_generate_guidelines.return_value = GuidelineGenerationResult(guidelines=[mock_guideline], task_description="New message")
+        mock_generate_guidelines.return_value = [GuidelineGenerationResult(guidelines=[mock_guideline], task_description="New message")]
 
         result = phoenix_sync.sync(limit=10)
 
