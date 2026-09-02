@@ -381,6 +381,27 @@ PLATFORMS: dict[str, dict[str, Any]] = {
         "metadata_target": None,
         "metadata_emit": None,
     },
+    # Hermes ships a Python MemoryProvider, not a prompt/skill bundle: its files
+    # are copied verbatim (no .j2), and its manifest is plugin.yaml rather than a
+    # rendered plugin.json, so metadata_target is None. Only lib/ is wanted from
+    # the shared tree — entity_io.py is imported directly by backend.py.
+    #
+    # target_excludes is opt-out, not a lookahead: cfg.excludes() runs against
+    # every entry including the _hermes/ ones, so a blanket "^(?!lib/)" would
+    # exclude the provider's own flat files. Name the two shared top-level
+    # members instead; test_hermes.py pins the resulting file set so a future
+    # shared top-level file cannot slip in silently.
+    "hermes": {
+        "plugin_root": "platform-integrations/hermes/plugins/evolve",
+        "context": {},
+        "target_rewrites": [],
+        "target_excludes": [
+            r"^skills/",
+            r"^EVOLVE\.md$",
+        ],
+        "metadata_target": None,
+        "metadata_emit": None,
+    },
 }
 
 
