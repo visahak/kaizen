@@ -1,5 +1,7 @@
 """Tests for the Hermes memory-provider bundle and its installer."""
 
+import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -36,6 +38,34 @@ def _bundle_files():
     }
 
 
+def _load_module(name, path):
+    """Import a file from the rendered bundle under an arbitrary module name.
+
+    ``submodule_search_locations`` plus the ``sys.modules`` registration are what
+    make this work for ``__init__.py``, which uses relative imports: without the
+    search locations the module is not a package and ``from .backend import ...``
+    raises ``ModuleNotFoundError``, and without the registration the relative
+    import cannot resolve its own parent.
+    """
+    spec = importlib.util.spec_from_file_location(
+        name, path, submodule_search_locations=[str(Path(path).parent)]
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
+    return module
+
+
+@pytest.fixture(scope="module")
+def hermes_backend():
+    """The rendered ``backend.py``. Stdlib-only, so no host stubs are needed."""
+    return _load_module("_hermes_backend", _HERMES_PLUGIN_ROOT / "backend.py")
+
+
 class TestHermesBundleStructure:
     def test_bundle_contains_exactly_the_expected_files(self):
         assert _bundle_files() == _EXPECTED_BUNDLE
@@ -51,3 +81,96 @@ class TestHermesBundleStructure:
         assert data["pip_dependencies"] == [], (
             "the Hermes bundle must stay install-free — no runtime pip dependency"
         )
+
+
+class TestHermesEntityIo:
+    """The entity format comes from the shared lib, not a private copy.
+
+    backend.py used to re-implement entity_io.py. These tests pin the
+    delegation itself (so the copy cannot creep back) and the two places the
+    Hermes wrappers deliberately differ from the shared functions.
+    """
+
+    def test_format_helpers_come_from_the_shared_module(self, hermes_backend):
+        shared = _HERMES_PLUGIN_ROOT / "lib/evolve-lite/entity_io.py"
+        for fn in (hermes_backend.entity_to_markdown, hermes_backend.markdown_to_entity):
+            assert Path(fn.__code__.co_filename) == shared, (
+                f"{fn.__name__} is not the shared implementation"
+            )
+
+    def test_bundled_lib_is_not_put_on_sys_path(self, hermes_backend):
+        # lib/evolve-lite/ holds config.py among others; the provider is imported
+        # into a long-lived host process, so it must not shadow that name.
+        assert str(hermes_backend._LIB_DIR) not in sys.path
+
+    def test_backend_source_does_not_reimplement_the_format(self):
+        source = (_HERMES_PLUGIN_ROOT / "backend.py").read_text()
+        assert "_FRONTMATTER_KEYS" not in source, (
+            "frontmatter key order belongs to lib/entity_io.py alone"
+        )
+
+    def test_slugify_tolerates_none(self, hermes_backend):
+        # The shared slugify assumes a string and would raise on None; the
+        # wrapper keeps the provider's historical tolerance. "entity" (not "")
+        # is the shared function's own empty-input fallback.
+        assert hermes_backend.slugify(None) == "entity"
+        assert hermes_backend.slugify("Prefer uv run") == "prefer-uv-run"
+
+    def test_entity_to_markdown_emits_ordered_non_empty_frontmatter(self, hermes_backend):
+        md = hermes_backend.entity_to_markdown(
+            {
+                "type": "guideline",
+                "trigger": "counting issues",
+                "owner": "",
+                "content": "Use the search API.",
+                "rationale": "The list endpoint paginates.",
+            }
+        )
+        assert md.startswith("---\ntype: guideline\ntrigger: counting issues\n---\n")
+        assert "owner:" not in md
+        assert "## Rationale\n\nThe list endpoint paginates." in md
+
+    def test_markdown_round_trips(self, hermes_backend, tmp_path):
+        entity = {
+            "type": "guideline",
+            "trigger": "counting issues",
+            "content": "Use the search API.\n\nIt returns total_count.",
+            "rationale": "The list endpoint paginates.",
+        }
+        path = tmp_path / "g.md"
+        path.write_text(hermes_backend.entity_to_markdown(entity), encoding="utf-8")
+        assert hermes_backend.markdown_to_entity(path) == entity
+
+    def test_write_entity_file_uses_a_type_subdirectory(self, hermes_backend, tmp_path):
+        path = hermes_backend.write_entity_file(
+            tmp_path, {"type": "Guideline Note", "content": "Prefer uv run."}
+        )
+        assert path.parent == tmp_path / "guideline-note"
+        assert path.name == "prefer-uv-run.md"
+
+    def test_write_entity_file_suffixes_on_collision(self, hermes_backend, tmp_path):
+        entity = {"type": "guideline", "content": "Prefer uv run."}
+        first = hermes_backend.write_entity_file(tmp_path, entity)
+        second = hermes_backend.write_entity_file(tmp_path, entity)
+        assert first.name == "prefer-uv-run.md"
+        assert second.name == "prefer-uv-run-2.md"
+
+    def test_write_entity_file_does_not_mutate_the_callers_entity(self, hermes_backend, tmp_path):
+        # The shared implementation stamps the sanitized type onto the dict it is
+        # handed; provider callers reuse their dicts, so the wrapper copies first.
+        entity = {"type": "Guideline Note", "content": "Prefer uv run."}
+        hermes_backend.write_entity_file(tmp_path, entity)
+        assert entity["type"] == "Guideline Note"
+
+    def test_lite_backend_round_trips_through_the_shared_writer(self, hermes_backend, tmp_path):
+        backend = hermes_backend.LiteBackend(tmp_path)
+        backend.save_guideline(
+            content="Use the search API to count issues.",
+            trigger="counting issues",
+            rationale="The list endpoint paginates.",
+        )
+        results = backend.get_guidelines("how do I count issues", limit=5)
+        assert len(results) == 1
+        assert results[0]["content"] == "Use the search API to count issues."
+        assert results[0]["trigger"] == "counting issues"
+        assert results[0]["rationale"] == "The list endpoint paginates."

@@ -12,21 +12,19 @@ with two implementations:
   ``NotImplementedError`` so a misconfigured ``EVOLVE_MODE=server`` fails
   loudly instead of silently doing nothing.
 
-Entity file format is compatible with upstream evolve-lite
-(``altk-evolve/plugin-source/lib/entity_io.py``): markdown files under
-``entities/{type}/{slug}.md`` with YAML frontmatter (a fixed key order,
-only non-empty keys written) and an optional ``## Rationale`` section.
-This module is a lean, dependency-free re-implementation — it does not
-vendor or import the upstream library.
+Entity files are markdown under ``entities/{type}/{slug}.md`` with YAML
+frontmatter and an optional ``## Rationale`` section. That format is owned
+by the shared evolve-lite ``entity_io`` module, which this bundle imports —
+see the import block below.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
-import os
 import re
-import tempfile
+import sys
 import threading
 import time
 from pathlib import Path
@@ -34,13 +32,41 @@ from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Frontmatter keys, in the order upstream evolve-lite writes them. Only
-# non-empty values are emitted — this keeps the format compatible with
-# entity_io.py's parser (and its own writer, for round-tripping).
-_FRONTMATTER_KEYS = (
-    "type", "trigger", "trajectory", "owner", "source",
-    "native_path", "visibility", "published_at",
-)
+# The shared entity_io ships into this bundle at lib/evolve-lite/entity_io.py
+# (rendered from plugin-source/lib/ by build_plugins.py). Importing it keeps one
+# source of truth for the on-disk format, and costs no pip dependency: it is
+# stdlib-only and travels with the plugin.
+_LIB_DIR = Path(__file__).resolve().parent / "lib" / "evolve-lite"
+
+
+def _load_bundled(module_name: str) -> Any:
+    """Import a stdlib-only module out of the bundled evolve-lite lib.
+
+    Loaded by explicit path rather than by prepending ``_LIB_DIR`` to
+    ``sys.path``: that directory also holds common names like ``config.py``,
+    and this runs inside a long-lived host process where shadowing those for
+    unrelated code would be a nasty surprise.
+    """
+    path = _LIB_DIR / f"{module_name}.py"
+    spec = importlib.util.spec_from_file_location(f"evolve_lite_{module_name}", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load bundled evolve-lite module at {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(spec.name, None)
+        raise
+    return module
+
+
+_entity_io = _load_bundled("entity_io")
+
+entity_to_markdown = _entity_io.entity_to_markdown
+markdown_to_entity = _entity_io.markdown_to_entity
+_slugify = _entity_io.slugify
+_write_entity_file = _entity_io.write_entity_file
 
 _STOPWORDS = {
     "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "is",
@@ -57,147 +83,29 @@ def _tokenize(text: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# Entity file format (lean re-implementation of entity_io.py)
+# Entity file format — thin wrappers over the shared entity_io
 # ---------------------------------------------------------------------------
 
 def slugify(text: str, max_length: int = 60) -> str:
-    """Convert *text* to a filesystem-safe slug."""
-    text = (text or "").lower()
-    text = re.sub(r"[^a-z0-9]+", "-", text)
-    text = text.strip("-")
-    if len(text) > max_length:
-        text = text[:max_length].rsplit("-", 1)[0]
-    return text or "entity"
+    """Slugify *text*, tolerating ``None``.
 
-
-def _sanitize_type(text: str) -> str:
-    """Sanitize an entity ``type`` into a filesystem-safe subdirectory name."""
-    if not isinstance(text, str):
-        return ""
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9]+", "-", text)
-    return text.strip("-")
-
-
-def entity_to_markdown(entity: Dict[str, Any]) -> str:
-    """Serialize an entity dict to markdown with YAML frontmatter."""
-    lines = ["---"]
-    for key in _FRONTMATTER_KEYS:
-        val = entity.get(key)
-        if val:
-            lines.append(f"{key}: {val}")
-    lines.append("---")
-    lines.append("")
-    lines.append(entity.get("content", ""))
-
-    rationale = entity.get("rationale")
-    if rationale:
-        lines.append("")
-        lines.append("## Rationale")
-        lines.append("")
-        lines.append(rationale)
-
-    lines.append("")
-    return "\n".join(lines)
-
-
-def markdown_to_entity(path: Any) -> Dict[str, Any]:
-    """Parse a markdown entity file back into a dict."""
-    path = Path(path)
-    text = path.read_text(encoding="utf-8")
-
-    entity: Dict[str, Any] = {}
-
-    if text.startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            frontmatter = parts[1].strip()
-            body = parts[2]
-            for line in frontmatter.splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                key, _, value = line.partition(":")
-                key = key.strip()
-                value = value.strip()
-                if key and value:
-                    entity[key] = value
-        else:
-            body = text
-    else:
-        body = text
-
-    body = body.strip()
-    m = re.search(r"^## Rationale", body, re.MULTILINE)
-    if m:
-        content = body[: m.start()].strip()
-        rationale = body[m.end():].strip()
-        if rationale:
-            entity["rationale"] = rationale
-    else:
-        content = body
-
-    if content:
-        entity["content"] = content
-
-    return entity
-
-
-def _unique_filename(directory: Path, slug: str) -> Path:
-    """Return a Path that doesn't collide with existing files in *directory*."""
-    candidate = directory / f"{slug}.md"
-    if not candidate.exists():
-        return candidate
-    n = 2
-    while True:
-        candidate = directory / f"{slug}-{n}.md"
-        if not candidate.exists():
-            return candidate
-        n += 1
-
-
-def write_entity_file(directory: Any, entity: Dict[str, Any], filename: Optional[str] = None) -> Path:
-    """Write a single entity as a markdown file under *directory*.
-
-    The file is placed in a ``{type}/`` subdirectory. Uses an atomic write
-    (unique temp file, then ``os.replace``) and appends a ``-2``/``-3``
-    suffix on slug collision.
+    The shared implementation assumes a string; provider callers pass values
+    straight from LLM output, which may be missing.
     """
-    entity_type = _sanitize_type(entity.get("type", "guideline")) or "guideline"
-    entity = dict(entity)
-    entity["type"] = entity_type
-    type_dir = Path(directory) / entity_type
-    type_dir.mkdir(parents=True, exist_ok=True)
+    return _slugify(text or "", max_length=max_length)
 
-    slug = slugify(filename) if filename else slugify(entity.get("content", "entity"))
-    content = entity_to_markdown(entity)
 
-    fd, tmp_path = tempfile.mkstemp(dir=type_dir, suffix=".tmp", prefix=slug)
-    target: Optional[Path] = None
-    try:
-        os.write(fd, content.encode("utf-8"))
-        os.close(fd)
-        fd = None
+def write_entity_file(directory: Any, entity: Dict[str, Any],
+                      filename: Optional[str] = None) -> Path:
+    """Write an entity as markdown under ``directory/{type}/{slug}.md``.
 
-        while True:
-            target = _unique_filename(type_dir, slug)
-            try:
-                claim_fd = os.open(str(target), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.close(claim_fd)
-                break
-            except FileExistsError:
-                continue
-
-        os.replace(tmp_path, target)
-        return target
-    except BaseException:
-        if fd is not None:
-            os.close(fd)
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        if target and os.path.exists(str(target)) and os.path.getsize(str(target)) == 0:
-            os.unlink(str(target))
-        raise
+    The entity is copied first: the shared implementation stamps the sanitized
+    ``type`` onto the dict it is handed, and callers here reuse their dicts.
+    ``overwrite=False`` keeps the historical behaviour of suffixing ``-2``,
+    ``-3``, … on slug collision rather than replacing an existing entity.
+    """
+    return _write_entity_file(directory, dict(entity), filename=filename,
+                              overwrite=False)
 
 
 # ---------------------------------------------------------------------------
