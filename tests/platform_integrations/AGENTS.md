@@ -5,7 +5,7 @@
 Tests for `platform-integrations/install.sh` to ensure the installer:
 1. **NEVER overwrites existing user data** (critical requirement)
 2. Is idempotent (can be run multiple times safely)
-3. Properly installs/uninstalls for Bob, Roo, and Claude platforms
+3. Properly installs/uninstalls for the Bob, Claude, Claw Code, Codex, and Hermes platforms
 
 ## Critical Requirement
 
@@ -24,9 +24,14 @@ This is the most important requirement. Users may have custom skills, commands, 
 tests/platform_integrations/
 ├── AGENTS.md                    # This file
 ├── conftest.py                  # Fixtures and helpers
+├── _hermes_host_stubs/          # Fake hermes-agent modules (see Hermes Tests below)
 ├── test_preservation.py         # CRITICAL: User data preservation tests
+├── test_hermes.py               # Hermes bundle, provider import, and installer
 └── test_idempotency.py         # Idempotency tests
 ```
+
+Only the files above are listed exhaustively where they matter to the rules below;
+the directory holds several more `test_*.py` modules per platform and concern.
 
 ## Running Tests
 
@@ -70,6 +75,40 @@ These verify that running install multiple times is safe:
 **Uninstall/Install Cycles:**
 - Uninstalling and reinstalling works correctly
 - User content remains intact through the cycle
+
+### Hermes Tests (test_hermes.py)
+
+Hermes is the odd platform out: it installs a Python `MemoryProvider` that Hermes
+imports and calls, not a prompt/skill bundle. So this file tests three things the
+other platform files do not:
+
+1. **Bundle shape** — `_EXPECTED_BUNDLE` pins the *exact* rendered file set under
+   `platform-integrations/hermes/plugins/evolve/`. The generator's
+   `target_excludes` is opt-out, so without this pin a newly added shared file
+   under `plugin-source/` would silently fan into the Hermes bundle.
+   `plugin.yaml`'s `pip_dependencies` must stay `[]` — the bundle is install-free.
+2. **Entity format delegation** — `backend.py` must import the shared
+   `entity_io` from `lib/evolve-lite/`, not re-implement it. Tests assert on the
+   defining file of `entity_to_markdown`/`markdown_to_entity`, and that the lib
+   dir is **not** put on `sys.path` (it contains `config.py`, which would shadow
+   that common name inside the long-lived Hermes process).
+3. **Importability outside Hermes** — the bundle hard-imports exactly two host
+   symbols, `agent.memory_provider.MemoryProvider` and `tools.registry.tool_error`.
+   Everything else (`agent.memory_manager`, `agent.plugin_llm`, `utils`,
+   `hermes_constants`) is lazy or try/except-guarded.
+
+`_hermes_host_stubs/` provides those two symbols as a real package tree, because
+they are dotted imports and cannot be faked with a plain module object. The
+underscore prefix keeps pytest from collecting it (cf. `tests/unit/_ext_native_plugin.py`).
+`_load_module` puts it on `sys.path` for the duration of one import and then
+removes it — do not make that insert permanent, or the stubs leak into every
+later test in the session.
+
+Installer tests target `$HERMES_HOME/plugins/evolve/`, which is **global**: the
+Hermes install ignores `--dir` entirely. `sandbox_home` unsets `HERMES_HOME` in
+addition to pinning `HOME`, since `HERMES_HOME` takes precedence in
+`_hermes_home()` — without that, a developer who sets it would have tests write
+into their real Hermes home.
 
 ## Available Fixtures
 
@@ -244,6 +283,18 @@ class TestMyFeature:
    codex_hooks = true
    ```
    If hooks are not enabled, invoke the `evolve-lite:recall` skill manually.
+
+**Hermes Lite Mode:**
+(See `HermesInstaller` in install.sh)
+
+1. Copy the bundle: `platform-integrations/hermes/plugins/evolve/` →
+   `$HERMES_HOME/plugins/evolve/` (default `~/.hermes/plugins/evolve/`)
+2. Nothing else: no config file is edited, no CLI is invoked, nothing is written
+   into the target directory. The user enables it with
+   `hermes config set memory.provider evolve`.
+3. Uninstall removes only `$HERMES_HOME/plugins/evolve/` (plus `plugins/` if it
+   is left empty) and **keeps** the guideline store at `$HERMES_HOME/evolve/` —
+   learned guidelines are user data.
 
 ## Important Notes
 

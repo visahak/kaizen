@@ -38,7 +38,20 @@ def _bundle_files():
     }
 
 
-def _load_module(name, path):
+def _is_stdlib_import(line):
+    """True if an ``import x`` / ``from x import y`` line names only stdlib roots.
+
+    Used to classify the bundle's module-level imports: anything that is neither
+    stdlib nor a relative import is a Hermes host dependency.
+    """
+    if line.startswith("from "):
+        roots = [line.split()[1]]
+    else:
+        roots = line[len("import "):].split("#")[0].split(",")
+    return all(r.strip().split(".")[0] in sys.stdlib_module_names for r in roots)
+
+
+def _load_module(name, path, extra_syspath=()):
     """Import a file from the rendered bundle under an arbitrary module name.
 
     ``submodule_search_locations`` plus the ``sys.modules`` registration are what
@@ -46,7 +59,13 @@ def _load_module(name, path):
     search locations the module is not a package and ``from .backend import ...``
     raises ``ModuleNotFoundError``, and without the registration the relative
     import cannot resolve its own parent.
+
+    ``extra_syspath`` entries (the host stubs) are prepended for the duration of
+    the import only, then removed — a permanent insert would leak stub packages
+    into every later test in the session.
     """
+    added = [str(p) for p in extra_syspath if str(p) not in sys.path]
+    sys.path[:0] = added
     spec = importlib.util.spec_from_file_location(
         name, path, submodule_search_locations=[str(Path(path).parent)]
     )
@@ -57,6 +76,10 @@ def _load_module(name, path):
     except BaseException:
         sys.modules.pop(name, None)
         raise
+    finally:
+        for entry in added:
+            if entry in sys.path:
+                sys.path.remove(entry)
     return module
 
 
@@ -269,3 +292,50 @@ class TestHermesInstall:
         result = install_runner.run("status")
 
         assert "Hermes" in result.stdout
+
+
+_HOST_STUBS = Path(__file__).parent / "_hermes_host_stubs"
+
+
+class TestHermesProviderImports:
+    """The bundle must import with only the two hard host dependencies stubbed."""
+
+    def test_provider_imports_and_exposes_register(self):
+        provider = _load_module(
+            "_hermes_provider",
+            _HERMES_PLUGIN_ROOT / "__init__.py",
+            extra_syspath=[_HOST_STUBS],
+        )
+        assert hasattr(provider, "EvolveMemoryProvider")
+        assert callable(provider.register)
+
+    def test_provider_name_is_evolve(self):
+        provider = _load_module(
+            "_hermes_provider_name",
+            _HERMES_PLUGIN_ROOT / "__init__.py",
+            extra_syspath=[_HOST_STUBS],
+        )
+        assert provider.EvolveMemoryProvider().name == "evolve"
+
+    def test_only_two_host_modules_are_hard_imports(self):
+        """Everything beyond MemoryProvider + tool_error must stay lazy/guarded.
+
+        The bundle is imported into a Hermes process, but it is also unit-tested
+        outside one. Every extra module-level host import is another stub the
+        tests must carry — and another way a Hermes refactor breaks the bundle.
+        """
+        source = (_HERMES_PLUGIN_ROOT / "__init__.py").read_text()
+        module_level = [
+            ln for ln in source.splitlines()
+            if ln.startswith("from ") or ln.startswith("import ")
+        ]
+        # Anything not resolvable from the stdlib or the bundle itself is a host
+        # import; matching on names would miss a new one (e.g. `utils`).
+        host_imports = [
+            ln for ln in module_level
+            if not ln.startswith("from .") and not _is_stdlib_import(ln)
+        ]
+        assert host_imports == [
+            "from agent.memory_provider import MemoryProvider",
+            "from tools.registry import tool_error",
+        ], f"unexpected module-level host imports: {host_imports}"
