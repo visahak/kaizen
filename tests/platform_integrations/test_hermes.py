@@ -174,3 +174,98 @@ class TestHermesEntityIo:
         assert results[0]["content"] == "Use the search API to count issues."
         assert results[0]["trigger"] == "counting issues"
         assert results[0]["rationale"] == "The list endpoint paginates."
+
+
+@pytest.fixture
+def hermes_home(sandbox_home):
+    """The sandboxed $HERMES_HOME the installer targets."""
+    return sandbox_home / ".hermes"
+
+
+@pytest.fixture
+def hermes_plugin_dir(hermes_home):
+    """Where the provider lands: $HERMES_HOME/plugins/evolve/."""
+    return hermes_home / "plugins" / "evolve"
+
+
+class TestHermesInstall:
+    """Install copies the bundle to Hermes's documented user-plugin path.
+
+    The install is GLOBAL — it lands under $HERMES_HOME regardless of --dir —
+    because Hermes discovers memory providers from its own home, not per-repo.
+    """
+
+    def test_install_copies_provider_and_lib(self, install_runner, file_assertions, hermes_plugin_dir):
+        install_runner.run("install", platform="hermes")
+
+        file_assertions.assert_file_exists(hermes_plugin_dir / "__init__.py")
+        file_assertions.assert_file_exists(hermes_plugin_dir / "backend.py")
+        file_assertions.assert_file_exists(hermes_plugin_dir / "plugin.yaml")
+        file_assertions.assert_file_exists(hermes_plugin_dir / "lib" / "evolve-lite" / "entity_io.py")
+
+    def test_install_is_idempotent(self, install_runner, file_assertions, hermes_plugin_dir):
+        install_runner.run("install", platform="hermes")
+        install_runner.run("install", platform="hermes")
+
+        file_assertions.assert_file_exists(hermes_plugin_dir / "__init__.py")
+
+    def test_install_ignores_target_dir(self, install_runner, temp_project_dir, hermes_plugin_dir):
+        # Global, not per-project: nothing may be written under the repo.
+        install_runner.run("install", platform="hermes")
+
+        assert hermes_plugin_dir.is_dir()
+        assert not (temp_project_dir / ".hermes").exists()
+
+    def test_install_honours_hermes_home(self, install_runner, tmp_path, file_assertions):
+        elsewhere = tmp_path / "custom-hermes"
+        install_runner.run("install", platform="hermes", env={"HERMES_HOME": str(elsewhere)})
+
+        file_assertions.assert_file_exists(elsewhere / "plugins" / "evolve" / "__init__.py")
+
+    def test_install_preserves_a_sibling_user_plugin(self, install_runner, file_assertions, hermes_home):
+        # AGENTS.md:10 — never disturb user content.
+        other = hermes_home / "plugins" / "my-own-plugin" / "plugin.yaml"
+        file_assertions.write_text(other, "name: my-own-plugin\n")
+
+        install_runner.run("install", platform="hermes")
+
+        file_assertions.assert_file_unchanged(other, "name: my-own-plugin\n")
+
+    def test_dry_run_writes_nothing(self, install_runner, hermes_plugin_dir):
+        result = install_runner.run("install", platform="hermes", dry_run=True)
+
+        assert "DRY RUN" in result.stdout
+        assert not hermes_plugin_dir.exists()
+
+    def test_uninstall_removes_only_the_evolve_plugin(
+        self, install_runner, file_assertions, hermes_home, hermes_plugin_dir
+    ):
+        other = hermes_home / "plugins" / "my-own-plugin" / "plugin.yaml"
+        file_assertions.write_text(other, "name: my-own-plugin\n")
+        install_runner.run("install", platform="hermes")
+        file_assertions.assert_file_exists(hermes_plugin_dir / "__init__.py")
+
+        install_runner.run("uninstall", platform="hermes")
+
+        file_assertions.assert_dir_not_exists(hermes_plugin_dir)
+        file_assertions.assert_file_unchanged(other, "name: my-own-plugin\n")
+
+    def test_uninstall_keeps_the_guideline_store(self, install_runner, file_assertions, hermes_home):
+        # Learned guidelines are user data; uninstall removes code, never the store.
+        store = hermes_home / "evolve" / "entities" / "guideline" / "kept.md"
+        file_assertions.write_text(store, "---\ntype: guideline\n---\n\nKeep me.\n")
+        install_runner.run("install", platform="hermes")
+
+        install_runner.run("uninstall", platform="hermes")
+
+        file_assertions.assert_file_unchanged(store, "---\ntype: guideline\n---\n\nKeep me.\n")
+
+    def test_uninstall_without_install_succeeds(self, install_runner):
+        # Nothing to remove is not an error.
+        install_runner.run("uninstall", platform="hermes")
+
+    def test_status_reports_hermes(self, install_runner):
+        install_runner.run("install", platform="hermes")
+        result = install_runner.run("status")
+
+        assert "Hermes" in result.stdout
