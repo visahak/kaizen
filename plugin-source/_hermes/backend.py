@@ -1,6 +1,6 @@
 """Backend seam for the Evolve memory provider.
 
-The provider (``plugins/memory/evolve/__init__.py``) talks to a 3-method
+The provider (``__init__.py``, next to this file) talks to a 3-method
 interface — ``get_guidelines``, ``save_guideline``, ``save_trajectory`` —
 with two implementations:
 
@@ -144,7 +144,7 @@ class ServerBackend(EvolveBackend):
 
     def get_guidelines(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         raise NotImplementedError(
-            "ServerBackend is a Phase 1 stub (see plans/evolve-memory-provider.md). "
+            "ServerBackend is a Phase 1 stub (see README.md, \"Lite vs. server mode\"). "
             "Set EVOLVE_MODE=lite (the default) to use the filesystem backend."
         )
 

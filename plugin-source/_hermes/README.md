@@ -7,7 +7,8 @@ hermes-agent, wired in through the `MemoryProvider` ABC
 before each turn -- a middle tier between the char-capped built-in memory
 snapshot (`MEMORY.md`/`USER.md`) and name-triggered skills.
 
-See `plans/evolve-memory-provider.md` for the full design rationale.
+User-facing docs (install, config, storage layout, limitations):
+<https://agenttoolkit.github.io/altk-evolve/integrations/hermes/>.
 
 ## Lite vs. server mode
 
@@ -50,8 +51,9 @@ pgvector/Milvus) is not implemented yet.
   never write -- forks and background jobs must not pollute the
   namespace.
 - **Provenance**: every prefetch that returns entries appends
-  `{ts, session_id, guideline_slugs}` as a JSON line to
-  `$HERMES_HOME/evolve/audit.log`. This is free in Phase 0 because the
+  `{event, session_id, entities, ts}` as a JSON line to
+  `$HERMES_HOME/evolve/audit.log` -- the same schema evolve-lite's
+  `audit_recall.py` reads. This is free in Phase 0 because the
   provider is the injector; judging whether a guideline actually changed
   the outcome is a later, LLM-analysis pass (Phase 2).
 - **Tools**: `evolve_get_guidelines(task)` for explicit on-demand recall,
@@ -71,12 +73,19 @@ $HERMES_HOME/evolve/
     <session_id>.jsonl
 ```
 
-Entity files are markdown with YAML frontmatter, compatible with upstream
-evolve-lite's format (`type`, `trigger`, `trajectory`, `owner`, `source`,
-`native_path`, `visibility`, `published_at` -- only non-empty keys are
-written), body = guideline content, optional `## Rationale` section. See
-`plugins/memory/evolve/backend.py` for the lean re-implementation (this
-plugin does not vendor `altk-evolve`'s `entity_io.py`).
+Entity files are markdown with YAML frontmatter (`type`, `trigger`,
+`trajectory`, `owner`, `source`, `native_path`, `visibility`,
+`published_at` -- only non-empty keys are written), body = guideline
+content, optional `## Rationale` section.
+
+That format is not re-implemented here: this bundle ships evolve-lite's
+shared `entity_io.py` at `lib/evolve-lite/entity_io.py` and `backend.py`
+imports it, so there is one source of truth across every Evolve
+integration. It costs no pip dependency -- the module is stdlib-only and
+travels with the plugin. It is loaded by explicit path rather than by
+prepending `lib/evolve-lite/` to `sys.path`, since that directory also
+holds common names like `config.py` and shadowing those inside a
+long-lived host process would be a nasty surprise.
 
 ## Config
 
@@ -120,8 +129,8 @@ planned mitigation.
 
 - No conflict resolution: duplicate/near-duplicate guidelines accumulate
   over time.
-- Retrieval is lexical term-overlap, not semantic -- see
-  `plans/evolve-memory-provider.md` for why that's the honest baseline
-  (semantic retrieval needs a vector backend, which is server-only).
+- Retrieval is lexical term-overlap, not semantic. That's the honest
+  baseline, not an oversight: semantic retrieval needs a vector backend
+  (pgvector/Milvus), which is server-only.
 - No lite-to-server entity migration path yet; upgrading means starting
   fresh or writing an import script later.

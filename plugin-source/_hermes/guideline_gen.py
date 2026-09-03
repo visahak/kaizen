@@ -6,7 +6,7 @@ evolve-lite ``learn`` skill
 structured LLM call via ``agent.plugin_llm.PluginLlm``. This is Phase 0's
 answer to "who generates guidelines in lite mode": the provider itself,
 at capture time, using the user's active model + auth — no second API
-key, no core edits (see plans/evolve-memory-provider.md, "Phase 0").
+key, no core edits (see README.md, "How it works").
 
 Never raises. Capture must not break a session, so every failure mode
 (missing plugin_llm, LLM error, malformed JSON, empty trajectory) falls

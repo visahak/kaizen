@@ -3,14 +3,15 @@
 On-the-job learning: task guidelines are generated from session
 trajectories and recalled per-turn via a structured, query-retrieved
 format -- a middle tier between the char-capped built-in memory snapshot
-and name-triggered skills (see ``plans/evolve-memory-provider.md``).
+and name-triggered skills (see ``README.md``).
 
 Phase 0 ships the filesystem-only "lite" backend (``backend.LiteBackend``):
 no server, no MCP client, no extra dependency. The provider itself
 generates guidelines at capture time via ``agent.plugin_llm.PluginLlm``
 (``guideline_gen.py``), using the user's active model + auth. Retrieval is
-case-insensitive term-overlap scoring, not semantic search -- see the
-plan doc for why that's an honest limitation, not a bug.
+case-insensitive term-overlap scoring, not semantic search: semantic
+retrieval needs a vector backend, which is server-only. An honest
+limitation, not a bug.
 
 Config via environment variables (see ``get_config_schema`` / README.md
 for the full table):
