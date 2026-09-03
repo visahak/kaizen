@@ -1,16 +1,22 @@
-"""Tests for the Hermes memory-provider bundle and its installer."""
+"""Tests for the Hermes memory-provider bundle and its installer.
 
-import importlib.util
+Bundle shape, entity-format delegation, the installer, and importability live
+here; the provider's runtime behaviour (recall, capture gating, tools) lives in
+test_hermes_provider.py.
+"""
+
 import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
-pytestmark = pytest.mark.platform_integrations
+from _hermes_loader import HERMES_PLUGIN_ROOT as _HERMES_PLUGIN_ROOT
+from _hermes_loader import HOST_STUBS as _HOST_STUBS
+from _hermes_loader import is_stdlib_import as _is_stdlib_import
+from _hermes_loader import load_module as _load_module
 
-_REPO_ROOT = Path(__file__).parent.parent.parent
-_HERMES_PLUGIN_ROOT = _REPO_ROOT / "platform-integrations/hermes/plugins/evolve"
+pytestmark = pytest.mark.platform_integrations
 
 # The exact rendered bundle. Pinned so a new shared file under plugin-source/
 # cannot silently fan into the Hermes bundle (target_excludes is opt-out).
@@ -36,51 +42,6 @@ def _bundle_files():
         for p in _HERMES_PLUGIN_ROOT.rglob("*")
         if p.is_file() and "__pycache__" not in p.parts
     }
-
-
-def _is_stdlib_import(line):
-    """True if an ``import x`` / ``from x import y`` line names only stdlib roots.
-
-    Used to classify the bundle's module-level imports: anything that is neither
-    stdlib nor a relative import is a Hermes host dependency.
-    """
-    if line.startswith("from "):
-        roots = [line.split()[1]]
-    else:
-        roots = line[len("import "):].split("#")[0].split(",")
-    return all(r.strip().split(".")[0] in sys.stdlib_module_names for r in roots)
-
-
-def _load_module(name, path, extra_syspath=()):
-    """Import a file from the rendered bundle under an arbitrary module name.
-
-    ``submodule_search_locations`` plus the ``sys.modules`` registration are what
-    make this work for ``__init__.py``, which uses relative imports: without the
-    search locations the module is not a package and ``from .backend import ...``
-    raises ``ModuleNotFoundError``, and without the registration the relative
-    import cannot resolve its own parent.
-
-    ``extra_syspath`` entries (the host stubs) are prepended for the duration of
-    the import only, then removed — a permanent insert would leak stub packages
-    into every later test in the session.
-    """
-    added = [str(p) for p in extra_syspath if str(p) not in sys.path]
-    sys.path[:0] = added
-    spec = importlib.util.spec_from_file_location(
-        name, path, submodule_search_locations=[str(Path(path).parent)]
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    try:
-        spec.loader.exec_module(module)
-    except BaseException:
-        sys.modules.pop(name, None)
-        raise
-    finally:
-        for entry in added:
-            if entry in sys.path:
-                sys.path.remove(entry)
-    return module
 
 
 @pytest.fixture(scope="module")
@@ -292,9 +253,6 @@ class TestHermesInstall:
         result = install_runner.run("status")
 
         assert "Hermes" in result.stdout
-
-
-_HOST_STUBS = Path(__file__).parent / "_hermes_host_stubs"
 
 
 class TestHermesProviderImports:

@@ -25,8 +25,10 @@ tests/platform_integrations/
 ├── AGENTS.md                    # This file
 ├── conftest.py                  # Fixtures and helpers
 ├── _hermes_host_stubs/          # Fake hermes-agent modules (see Hermes Tests below)
+├── _hermes_loader.py            # Shared importlib helper for the rendered bundle
 ├── test_preservation.py         # CRITICAL: User data preservation tests
 ├── test_hermes.py               # Hermes bundle, provider import, and installer
+├── test_hermes_provider.py      # Hermes provider runtime behaviour
 └── test_idempotency.py         # Idempotency tests
 ```
 
@@ -100,15 +102,48 @@ other platform files do not:
 `_hermes_host_stubs/` provides those two symbols as a real package tree, because
 they are dotted imports and cannot be faked with a plain module object. The
 underscore prefix keeps pytest from collecting it (cf. `tests/unit/_ext_native_plugin.py`).
-`_load_module` puts it on `sys.path` for the duration of one import and then
+`load_module` puts it on `sys.path` for the duration of one import and then
 removes it — do not make that insert permanent, or the stubs leak into every
 later test in the session.
+
+The stubs also include `agent.memory_manager.sanitize_context`, which the bundle
+imports behind a `try/except` pass-through fallback. It is stubbed *even though it
+is optional* precisely because of that fallback: without a stub, "wired to the
+host sanitizer" and "silently degraded to no sanitizing" look identical. The stub
+strips `<memory-context>` fences like the real one and logs every call to
+`CALLS`, so tests can assert both the effect and the call. It must not prefix or
+wrap its input — the provider sanitizes the *whole* formatted recall block, so a
+prefix would land in front of the recall header the provider's output contract
+pins.
 
 Installer tests target `$HERMES_HOME/plugins/evolve/`, which is **global**: the
 Hermes install ignores `--dir` entirely. `sandbox_home` unsets `HERMES_HOME` in
 addition to pinning `HOME`, since `HERMES_HOME` takes precedence in
 `_hermes_home()` — without that, a developer who sets it would have tests write
 into their real Hermes home.
+
+### Hermes Provider Tests (test_hermes_provider.py)
+
+Runtime behaviour of the same rendered bundle: recall (formatting, sanitization,
+cache draining, the `audit.log` row schema the `provenance` skill consumes),
+capture gating (`agent_context`, `min_turns`, `capture_every_n_turns`, and the
+reset-vs-non-reset session switch), the two `evolve_*` tools, the trajectory
+adapter, `guideline_gen`'s malformed-output handling, and config precedence.
+Ported from hermes-agent's `tests/plugins/memory/test_evolve_provider.py`.
+
+Three things to know before editing it:
+
+- **Patch `generate_guidelines` before `initialize()`.** `initialize` binds the
+  module-level function into `LiteBackend` at construction time, so a
+  `monkeypatch.setattr` after the provider exists has no effect. That is why
+  every provider-building fixture/helper depends on the `noop_generator` fixture.
+- **Capture runs on a daemon thread.** Join it (`_join(provider)`) before
+  asserting, or the assertion races the write.
+- **Not ported: the two `PluginLlm` trust-gate tests.** They fake only
+  `agent.auxiliary_client.call_llm` so Hermes's real trust gate runs in between,
+  which needs `agent.plugin_llm` + `hermes_cli.config`. Stubbing those here would
+  assert nothing about the real gate, so they stay in hermes-agent; the live path
+  is covered by installing into a real `$HERMES_HOME`.
 
 ## Available Fixtures
 
