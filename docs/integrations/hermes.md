@@ -2,11 +2,21 @@
 
 Hermes is the one platform where Evolve Lite is not a prompt-and-skill bundle. Hermes has a first-class `MemoryProvider` interface, so Evolve installs as a Python provider that Hermes imports and calls directly: it learns guidelines from finished sessions and injects the relevant ones before each turn, with no `/learn` command to remember and no hook to wire up.
 
-Like the other lite integrations it needs no vector store, no MCP server, and no second API key — guideline generation runs inside Hermes using your already-configured model and credentials.
+Like the other lite integrations it needs no vector store, no MCP server, and no second API key — guideline generation runs inside Hermes, through `agent.plugin_llm`, on the model and credentials Hermes is already configured with. The one requirement it inherits from that lane is structured output; see [Prerequisites](#prerequisites).
 
 ## Prerequisites
 
 - [Hermes](https://github.com/NousResearch/hermes-agent) installed and configured
+- A model on Hermes's auxiliary lane that supports **structured output** (JSON schema). `PluginLlm` routes through `agent.auxiliary_client`, which defaults to your main model — so this is satisfied out of the box on the usual frontier providers. It is worth checking if you have pointed the auxiliary lane at a small or local model.
+
+!!! warning "A model that cannot do structured output fails quietly"
+    Guideline generation is a single `complete_structured` call, and capture is written never to break a session. So if the auxiliary model rejects the JSON schema, the result is **zero guidelines** with no user-visible error — the only trace is one line in `agent.log`:
+
+    ```text
+    evolve: guideline generation LLM call failed
+    ```
+
+    If sessions are ending and `entities/guideline/` stays empty, grep for that line before looking anywhere else.
 
 ## Installation
 
@@ -40,6 +50,22 @@ Two details worth knowing:
 
 - **Only primary sessions write.** Subagents and cron jobs get recall but never capture, so background work cannot pollute the store.
 - **Session resets capture too.** `/new` in the gateway ends a session without an explicit session-end, so the buffered transcript is captured under the session id that just finished.
+
+!!! warning "Check what ends a session on your install"
+    Capture only fires at a session boundary, and `hermes setup` writes `session_reset.mode: none` by default — sessions never auto-reset on idle or on a daily schedule. That leaves two boundaries: an explicit `/new` or `/reset`, and the Hermes process exiting. A long-running gateway that is never restarted and never sees a `/new` will therefore learn nothing, no matter how many turns go by.
+
+    Either pick an auto-reset policy:
+
+    ```bash
+    hermes config set session_reset.mode idle
+    hermes config set session_reset.idle_minutes 60
+    ```
+
+    or leave resets off and have Evolve capture on a turn count instead:
+
+    ```bash
+    export EVOLVE_CAPTURE_EVERY_N_TURNS=10
+    ```
 
 Every recall that returns something appends a row to `$HERMES_HOME/evolve/audit.log` in the same format the rest of Evolve uses, so the [`provenance`](../guides/guidelines.md) tooling can read Hermes sessions without anything Hermes-specific.
 
