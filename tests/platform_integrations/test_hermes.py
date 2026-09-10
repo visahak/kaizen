@@ -62,9 +62,7 @@ class TestHermesBundleStructure:
     def test_plugin_yaml_declares_no_pip_dependencies(self):
         data = yaml.safe_load((_HERMES_PLUGIN_ROOT / "plugin.yaml").read_text())
         assert data["name"] == "evolve"
-        assert data["pip_dependencies"] == [], (
-            "the Hermes bundle must stay install-free — no runtime pip dependency"
-        )
+        assert data["pip_dependencies"] == [], "the Hermes bundle must stay install-free — no runtime pip dependency"
 
 
 class TestHermesEntityIo:
@@ -78,9 +76,7 @@ class TestHermesEntityIo:
     def test_format_helpers_come_from_the_shared_module(self, hermes_backend):
         shared = _HERMES_PLUGIN_ROOT / "lib/evolve-lite/entity_io.py"
         for fn in (hermes_backend.entity_to_markdown, hermes_backend.markdown_to_entity):
-            assert Path(fn.__code__.co_filename) == shared, (
-                f"{fn.__name__} is not the shared implementation"
-            )
+            assert Path(fn.__code__.co_filename) == shared, f"{fn.__name__} is not the shared implementation"
 
     def test_bundled_lib_is_not_put_on_sys_path(self, hermes_backend):
         # The provider is imported into a long-lived host process, so it must add
@@ -96,9 +92,7 @@ class TestHermesEntityIo:
 
     def test_backend_source_does_not_reimplement_the_format(self):
         source = (_HERMES_PLUGIN_ROOT / "backend.py").read_text()
-        assert "_FRONTMATTER_KEYS" not in source, (
-            "frontmatter key order belongs to lib/entity_io.py alone"
-        )
+        assert "_FRONTMATTER_KEYS" not in source, "frontmatter key order belongs to lib/entity_io.py alone"
 
     def test_slugify_tolerates_none(self, hermes_backend):
         # The shared slugify assumes a string and would raise on None; the
@@ -133,9 +127,7 @@ class TestHermesEntityIo:
         assert hermes_backend.markdown_to_entity(path) == entity
 
     def test_write_entity_file_uses_a_type_subdirectory(self, hermes_backend, tmp_path):
-        path = hermes_backend.write_entity_file(
-            tmp_path, {"type": "Guideline Note", "content": "Prefer uv run."}
-        )
+        path = hermes_backend.write_entity_file(tmp_path, {"type": "Guideline Note", "content": "Prefer uv run."})
         assert path.parent == tmp_path / "guideline-note"
         assert path.name == "prefer-uv-run.md"
 
@@ -165,6 +157,18 @@ class TestHermesEntityIo:
         assert results[0]["content"] == "Use the search API to count issues."
         assert results[0]["trigger"] == "counting issues"
         assert results[0]["rationale"] == "The list endpoint paginates."
+
+    def test_an_undecodable_entity_file_is_skipped_not_fatal(self, hermes_backend, tmp_path):
+        # The provider swallows exceptions from retrieval, so one non-UTF-8 file
+        # escaping _iter_entities would silently zero out recall for the whole
+        # store. Only the bad file may be lost.
+        backend = hermes_backend.LiteBackend(tmp_path)
+        backend.save_guideline(content="Use the search API to count issues.", trigger="counting issues")
+        (backend.entities_dir / "guideline" / "binary.md").write_bytes(b"---\ntype: guideline\n---\n\n\xff\xfe not utf-8\n")
+
+        results = backend.get_guidelines("how do I count issues", limit=5)
+
+        assert [r["content"] for r in results] == ["Use the search API to count issues."]
 
 
 @pytest.fixture
@@ -228,9 +232,7 @@ class TestHermesInstall:
         assert "DRY RUN" in result.stdout
         assert not hermes_plugin_dir.exists()
 
-    def test_uninstall_removes_only_the_evolve_plugin(
-        self, install_runner, file_assertions, hermes_home, hermes_plugin_dir
-    ):
+    def test_uninstall_removes_only_the_evolve_plugin(self, install_runner, file_assertions, hermes_home, hermes_plugin_dir):
         other = hermes_home / "plugins" / "my-own-plugin" / "plugin.yaml"
         file_assertions.write_text(other, "name: my-own-plugin\n")
         install_runner.run("install", platform="hermes")
@@ -290,16 +292,10 @@ class TestHermesProviderImports:
         tests must carry — and another way a Hermes refactor breaks the bundle.
         """
         source = (_HERMES_PLUGIN_ROOT / "__init__.py").read_text()
-        module_level = [
-            ln for ln in source.splitlines()
-            if ln.startswith("from ") or ln.startswith("import ")
-        ]
+        module_level = [ln for ln in source.splitlines() if ln.startswith("from ") or ln.startswith("import ")]
         # Anything not resolvable from the stdlib or the bundle itself is a host
         # import; matching on names would miss a new one (e.g. `utils`).
-        host_imports = [
-            ln for ln in module_level
-            if not ln.startswith("from .") and not _is_stdlib_import(ln)
-        ]
+        host_imports = [ln for ln in module_level if not ln.startswith("from .") and not _is_stdlib_import(ln)]
         assert host_imports == [
             "from agent.memory_provider import MemoryProvider",
             "from tools.registry import tool_error",

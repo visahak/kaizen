@@ -72,22 +72,48 @@ _slugify = _entity_io.slugify
 _write_entity_file = _entity_io.write_entity_file
 
 _STOPWORDS = {
-    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "is",
-    "are", "with", "this", "that", "it", "be", "as", "at", "by", "from",
-    "was", "were", "will", "would", "should", "can", "could", "not",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "is",
+    "are",
+    "with",
+    "this",
+    "that",
+    "it",
+    "be",
+    "as",
+    "at",
+    "by",
+    "from",
+    "was",
+    "were",
+    "will",
+    "would",
+    "should",
+    "can",
+    "could",
+    "not",
 }
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
 def _tokenize(text: str) -> List[str]:
     """Lowercase word tokens, stopwords and single-char tokens dropped."""
-    return [w for w in _WORD_RE.findall((text or "").lower())
-            if w not in _STOPWORDS and len(w) > 1]
+    return [w for w in _WORD_RE.findall((text or "").lower()) if w not in _STOPWORDS and len(w) > 1]
 
 
 # ---------------------------------------------------------------------------
 # Entity file format — thin wrappers over the shared entity_io
 # ---------------------------------------------------------------------------
+
 
 def slugify(text: str, max_length: int = 60) -> str:
     """Slugify *text*, tolerating ``None``.
@@ -98,8 +124,7 @@ def slugify(text: str, max_length: int = 60) -> str:
     return _slugify(text or "", max_length=max_length)
 
 
-def write_entity_file(directory: Any, entity: Dict[str, Any],
-                      filename: Optional[str] = None) -> Path:
+def write_entity_file(directory: Any, entity: Dict[str, Any], filename: Optional[str] = None) -> Path:
     """Write an entity as markdown under ``directory/{type}/{slug}.md``.
 
     The entity is copied first: the shared implementation stamps the sanitized
@@ -107,13 +132,13 @@ def write_entity_file(directory: Any, entity: Dict[str, Any],
     ``overwrite=False`` keeps the historical behaviour of suffixing ``-2``,
     ``-3``, … on slug collision rather than replacing an existing entity.
     """
-    return _write_entity_file(directory, dict(entity), filename=filename,
-                              overwrite=False)
+    return _write_entity_file(directory, dict(entity), filename=filename, overwrite=False)
 
 
 # ---------------------------------------------------------------------------
 # Backend interface
 # ---------------------------------------------------------------------------
+
 
 class EvolveBackend:
     """Abstract backend interface consumed by ``EvolveMemoryProvider``."""
@@ -122,8 +147,7 @@ class EvolveBackend:
         """Return up to *limit* guideline entity dicts relevant to *query*."""
         raise NotImplementedError
 
-    def save_guideline(self, content: str, trigger: str = "", rationale: str = "",
-                        type: str = "guideline") -> str:
+    def save_guideline(self, content: str, trigger: str = "", rationale: str = "", type: str = "guideline") -> str:
         """Persist a guideline; return an id/path identifying it."""
         raise NotImplementedError
 
@@ -147,20 +171,15 @@ class ServerBackend(EvolveBackend):
 
     def get_guidelines(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         raise NotImplementedError(
-            "ServerBackend is a Phase 1 stub (see README.md, \"Lite vs. server mode\"). "
+            'ServerBackend is a Phase 1 stub (see README.md, "Lite vs. server mode"). '
             "Set EVOLVE_MODE=lite (the default) to use the filesystem backend."
         )
 
-    def save_guideline(self, content: str, trigger: str = "", rationale: str = "",
-                        type: str = "guideline") -> str:
-        raise NotImplementedError(
-            "ServerBackend is a Phase 1 stub; use EVOLVE_MODE=lite."
-        )
+    def save_guideline(self, content: str, trigger: str = "", rationale: str = "", type: str = "guideline") -> str:
+        raise NotImplementedError("ServerBackend is a Phase 1 stub; use EVOLVE_MODE=lite.")
 
     def save_trajectory(self, messages: List[Dict[str, Any]], session_id: str) -> Dict[str, Any]:
-        raise NotImplementedError(
-            "ServerBackend is a Phase 1 stub; use EVOLVE_MODE=lite."
-        )
+        raise NotImplementedError("ServerBackend is a Phase 1 stub; use EVOLVE_MODE=lite.")
 
 
 class LiteBackend(EvolveBackend):
@@ -201,7 +220,11 @@ class LiteBackend(EvolveBackend):
         for md in sorted(self.entities_dir.glob("**/*.md")):
             try:
                 entity = markdown_to_entity(md)
-            except OSError:
+            except (OSError, ValueError):
+                # ValueError covers UnicodeDecodeError, which is what a non-UTF-8
+                # file under entities/ raises. Skip that one file: the caller
+                # swallows exceptions from here, so letting it escape would zero
+                # out recall for every guideline in the store, not just this one.
                 continue
             if entity.get("content"):
                 entity["_path"] = str(md)
@@ -232,8 +255,7 @@ class LiteBackend(EvolveBackend):
 
     # -- writes -----------------------------------------------------------
 
-    def save_guideline(self, content: str, trigger: str = "", rationale: str = "",
-                        type: str = "guideline") -> str:
+    def save_guideline(self, content: str, trigger: str = "", rationale: str = "", type: str = "guideline") -> str:
         content = (content or "").strip()
         if not content:
             raise ValueError("content is required")
