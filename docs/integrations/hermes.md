@@ -27,11 +27,13 @@ hermes config set memory.provider evolve
 
 The install copies the provider bundle to `$HERMES_HOME/plugins/evolve/` (default `~/.hermes/plugins/evolve/`). This is **global**: unlike the Bob and Claude installs there is nothing per-repo, and `--dir` is ignored. Nothing is pip-installed — the bundle is stdlib-only and self-contained.
 
-Check the install with:
+Check the install the same way — the command above pipes the script straight to `bash`, so there is no local copy to invoke:
 
 ```bash
-./install.sh status
+curl -fsSL https://raw.githubusercontent.com/AgentToolkit/altk-evolve/main/platform-integrations/install.sh | bash -s -- status
 ```
+
+From a clone of the repo, run `platform-integrations/install.sh status` instead.
 
 Instead of `hermes config set`, you can run `hermes memory setup` and pick `evolve` — the provider publishes a config schema, so the wizard walks you through the settings in the [Configuration](#configuration) table.
 
