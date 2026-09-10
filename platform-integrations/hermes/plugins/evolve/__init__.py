@@ -32,7 +32,6 @@ import json
 import logging
 import os
 import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -48,8 +47,10 @@ logger = logging.getLogger(__name__)
 try:  # pragma: no cover - exercised indirectly; keep provider importable in isolation
     from agent.memory_manager import sanitize_context
 except Exception:  # pragma: no cover
+
     def sanitize_context(text: str) -> str:
         return text
+
 
 _PREFETCH_HEADER = "Guidelines learned from previous sessions (apply when relevant):"
 
@@ -103,6 +104,7 @@ SAVE_GUIDELINE_SCHEMA = {
 # Config
 # ---------------------------------------------------------------------------
 
+
 def _as_bool(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
         return value
@@ -155,8 +157,16 @@ def _load_config(hermes_home: str) -> Dict[str, Any]:
     return {
         "mode": mode,
         "dir": str(_resolve("EVOLVE_DIR", "dir", "")).strip(),
-        "prefetch_limit": max(1, _as_int(_resolve("EVOLVE_PREFETCH_LIMIT", "prefetch_limit", _DEFAULT_PREFETCH_LIMIT), _DEFAULT_PREFETCH_LIMIT)),
-        "capture_every_n_turns": max(0, _as_int(_resolve("EVOLVE_CAPTURE_EVERY_N_TURNS", "capture_every_n_turns", _DEFAULT_CAPTURE_EVERY_N_TURNS), _DEFAULT_CAPTURE_EVERY_N_TURNS)),
+        "prefetch_limit": max(
+            1, _as_int(_resolve("EVOLVE_PREFETCH_LIMIT", "prefetch_limit", _DEFAULT_PREFETCH_LIMIT), _DEFAULT_PREFETCH_LIMIT)
+        ),
+        "capture_every_n_turns": max(
+            0,
+            _as_int(
+                _resolve("EVOLVE_CAPTURE_EVERY_N_TURNS", "capture_every_n_turns", _DEFAULT_CAPTURE_EVERY_N_TURNS),
+                _DEFAULT_CAPTURE_EVERY_N_TURNS,
+            ),
+        ),
         "min_turns": max(0, _as_int(_resolve("EVOLVE_MIN_TURNS", "min_turns", _DEFAULT_MIN_TURNS), _DEFAULT_MIN_TURNS)),
         "expose_tools": _as_bool(_resolve("EVOLVE_EXPOSE_TOOLS", "expose_tools", _DEFAULT_EXPOSE_TOOLS), _DEFAULT_EXPOSE_TOOLS),
     }
@@ -173,12 +183,14 @@ def _save_config(values: Dict[str, Any], hermes_home: str) -> None:
             existing = {}
     existing.update(values)
     from utils import atomic_json_write
+
     atomic_json_write(config_path, existing, mode=0o600, sort_keys=True)
 
 
 # ---------------------------------------------------------------------------
 # Formatting
 # ---------------------------------------------------------------------------
+
 
 def _format_guidelines(entries: List[Dict[str, Any]]) -> str:
     """Render entities as a numbered guideline list under the recall header."""
@@ -204,6 +216,7 @@ def _entity_slug(entry: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 # MemoryProvider implementation
 # ---------------------------------------------------------------------------
+
 
 class EvolveMemoryProvider(MemoryProvider):
     """ALTK-Evolve memory provider -- Phase 0 lite (filesystem) backend."""
@@ -241,12 +254,26 @@ class EvolveMemoryProvider(MemoryProvider):
 
     def get_config_schema(self) -> List[Dict[str, Any]]:
         return [
-            {"key": "mode", "description": "Backend mode: 'lite' (filesystem, default) or 'server' (Phase 1, not yet implemented)", "default": "lite", "choices": ["lite", "server"]},
+            {
+                "key": "mode",
+                "description": "Backend mode: 'lite' (filesystem, default) or 'server' (Phase 1, not yet implemented)",
+                "default": "lite",
+                "choices": ["lite", "server"],
+            },
             {"key": "dir", "description": "Storage directory override (default: $HERMES_HOME/evolve)"},
             {"key": "prefetch_limit", "description": "Max guidelines recalled per turn", "default": "5"},
-            {"key": "capture_every_n_turns", "description": "Capture a trajectory snapshot every N turns (0 = session-end only)", "default": "0"},
+            {
+                "key": "capture_every_n_turns",
+                "description": "Capture a trajectory snapshot every N turns (0 = session-end only)",
+                "default": "0",
+            },
             {"key": "min_turns", "description": "Minimum turns before session-end capture fires", "default": "2"},
-            {"key": "expose_tools", "description": "Expose evolve_get_guidelines / evolve_save_guideline tools", "default": "true", "choices": ["true", "false"]},
+            {
+                "key": "expose_tools",
+                "description": "Expose evolve_get_guidelines / evolve_save_guideline tools",
+                "default": "true",
+                "choices": ["true", "false"],
+            },
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
@@ -255,6 +282,7 @@ class EvolveMemoryProvider(MemoryProvider):
     def initialize(self, session_id: str, **kwargs) -> None:
         try:
             from hermes_constants import get_hermes_home
+
             default_home = str(get_hermes_home())
         except Exception:
             default_home = str(Path.home() / ".hermes")
@@ -298,7 +326,7 @@ class EvolveMemoryProvider(MemoryProvider):
         return (
             "# Evolve Memory\n"
             "Task guidelines learned from previous sessions may be injected under "
-            "\"Guidelines learned from previous sessions\" -- apply them when relevant.\n"
+            '"Guidelines learned from previous sessions" -- apply them when relevant.\n'
             "Use evolve_save_guideline to record a durable, reusable lesson; "
             "evolve_get_guidelines to look up guidelines for a specific task on demand."
         )
@@ -357,15 +385,15 @@ class EvolveMemoryProvider(MemoryProvider):
         try:
             audit_path = Path(self._hermes_home) / "evolve" / "audit.log"
             audit_path.parent.mkdir(parents=True, exist_ok=True)
-            line = json.dumps({
-                "event": "recall",
-                "session_id": session_id,
-                "entities": [
-                    f"{(e.get('type') or 'guideline')}/{_entity_slug(e)}"
-                    for e in entries
-                ],
-                "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-            }, ensure_ascii=False)
+            line = json.dumps(
+                {
+                    "event": "recall",
+                    "session_id": session_id,
+                    "entities": [f"{(e.get('type') or 'guideline')}/{_entity_slug(e)}" for e in entries],
+                    "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                },
+                ensure_ascii=False,
+            )
             with open(audit_path, "a", encoding="utf-8") as f:
                 f.write(line + "\n")
         except Exception:
@@ -390,12 +418,7 @@ class EvolveMemoryProvider(MemoryProvider):
                 # gateway /new fires on_session_switch(reset=True), not
                 # on_session_end (that only fires at agent shutdown).
                 self._last_messages = list(messages)
-            if (
-                self._capture_every_n_turns
-                and self._capture_allowed
-                and messages
-                and self._turn_count % self._capture_every_n_turns == 0
-            ):
+            if self._capture_every_n_turns and self._capture_allowed and messages and self._turn_count % self._capture_every_n_turns == 0:
                 self._capture_async(messages, session_id or self._session_id)
         except Exception:
             logger.warning("evolve: sync_turn failed", exc_info=True)
@@ -445,10 +468,7 @@ class EvolveMemoryProvider(MemoryProvider):
                 pending = self._last_messages
                 self._last_messages = None
                 if pending and self._capture_allowed:
-                    turns = sum(
-                        1 for m in pending
-                        if isinstance(m, dict) and m.get("role") == "user"
-                    )
+                    turns = sum(1 for m in pending if isinstance(m, dict) and m.get("role") == "user")
                     if turns >= self._min_turns:
                         self._capture_async(pending, old_session_id)
                 self._turn_count = 0
@@ -483,13 +503,12 @@ class EvolveMemoryProvider(MemoryProvider):
         if not task:
             return tool_error("task is required")
         entries = self._backend.get_guidelines(task, self._prefetch_limit)
-        return json.dumps({
-            "guidelines": [
-                {"content": e.get("content", ""), "trigger": e.get("trigger", "")}
-                for e in entries
-            ],
-            "count": len(entries),
-        })
+        return json.dumps(
+            {
+                "guidelines": [{"content": e.get("content", ""), "trigger": e.get("trigger", "")} for e in entries],
+                "count": len(entries),
+            }
+        )
 
     def _tool_save_guideline(self, args: Dict[str, Any]) -> str:
         content = str(args.get("content") or "").strip()

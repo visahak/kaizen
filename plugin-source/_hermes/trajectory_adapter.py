@@ -19,8 +19,10 @@ from typing import Any, Dict, List
 try:  # pragma: no cover - exercised indirectly
     from agent.memory_manager import sanitize_context as _sanitize_context
 except Exception:  # pragma: no cover - keep adapter importable in isolation
+
     def _sanitize_context(text: str) -> str:
         return text
+
 
 _DEFAULT_MAX_TOOL_RESULT_CHARS = 2000
 # Roles we forward to Evolve. System prompts are hermes-internal and would

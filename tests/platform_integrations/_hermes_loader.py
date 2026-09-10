@@ -27,7 +27,7 @@ def is_stdlib_import(line):
     if line.startswith("from "):
         roots = [line.split()[1]]
     else:
-        roots = line[len("import "):].split("#")[0].split(",")
+        roots = line[len("import ") :].split("#")[0].split(",")
     return all(r.strip().split(".")[0] in sys.stdlib_module_names for r in roots)
 
 
@@ -47,9 +47,7 @@ def load_module(name, path, extra_syspath=()):
     """
     added = [str(p) for p in extra_syspath if str(p) not in sys.path]
     sys.path[:0] = added
-    spec = importlib.util.spec_from_file_location(
-        name, path, submodule_search_locations=[str(Path(path).parent)]
-    )
+    spec = importlib.util.spec_from_file_location(name, path, submodule_search_locations=[str(Path(path).parent)])
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     try:

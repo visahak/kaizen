@@ -148,12 +148,14 @@ def generate_guidelines(
         category = str(item.get("category") or "").strip().lower()
         if category not in _CATEGORIES:
             category = ""
-        out.append({
-            "content": content,
-            "trigger": str(item.get("trigger") or "").strip(),
-            "rationale": str(item.get("rationale") or "").strip(),
-            "category": category,
-        })
+        out.append(
+            {
+                "content": content,
+                "trigger": str(item.get("trigger") or "").strip(),
+                "rationale": str(item.get("rationale") or "").strip(),
+                "category": category,
+            }
+        )
         if len(out) >= _MAX_GUIDELINES:
             break
     return out

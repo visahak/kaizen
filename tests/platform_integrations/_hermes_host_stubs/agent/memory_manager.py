@@ -18,9 +18,7 @@ header that the provider's own output contract pins.
 
 import re
 
-_INTERNAL_CONTEXT_RE = re.compile(
-    r"<\s*memory-context\s*>[\s\S]*?</\s*memory-context\s*>", re.IGNORECASE
-)
+_INTERNAL_CONTEXT_RE = re.compile(r"<\s*memory-context\s*>[\s\S]*?</\s*memory-context\s*>", re.IGNORECASE)
 _FENCE_TAG_RE = re.compile(r"</?\s*memory-context\s*>", re.IGNORECASE)
 
 #: Every text passed to ``sanitize_context``, oldest first. Tests clear it.
