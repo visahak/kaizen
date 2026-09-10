@@ -20,17 +20,17 @@ pytestmark = pytest.mark.platform_integrations
 
 # The exact rendered bundle. Pinned so a new shared file under plugin-source/
 # cannot silently fan into the Hermes bundle (target_excludes is opt-out).
+#
+# entity_io.py is the only shared lib module here: the other four are reachable
+# only from skills or from EVOLVE.md's shell-out, neither of which Hermes ships.
+# See PLATFORMS["hermes"]["target_excludes"] in build_plugins.py.
 _EXPECTED_BUNDLE = {
     "README.md",
     "__init__.py",
     "backend.py",
     "guideline_gen.py",
     "lib/evolve-lite/__init__.py",
-    "lib/evolve-lite/audit.py",
-    "lib/evolve-lite/audit_recall.py",
-    "lib/evolve-lite/config.py",
     "lib/evolve-lite/entity_io.py",
-    "lib/evolve-lite/retention.py",
     "plugin.yaml",
     "trajectory_adapter.py",
 }
@@ -83,9 +83,16 @@ class TestHermesEntityIo:
             )
 
     def test_bundled_lib_is_not_put_on_sys_path(self, hermes_backend):
-        # lib/evolve-lite/ holds config.py among others; the provider is imported
-        # into a long-lived host process, so it must not shadow that name.
+        # The provider is imported into a long-lived host process, so it must add
+        # nothing importable that unrelated code could pick up by accident. On
+        # sys.path this directory captures every module name in it -- verified by
+        # importing the bundle with a foreign `config` module already resident and
+        # finding it untouched.
         assert str(hermes_backend._LIB_DIR) not in sys.path
+        # Registered under a namespaced key, not a bare `entity_io`. (Asserting
+        # the absence of the bare name would be order-dependent: the skill-script
+        # tests legitimately import it that way, in a process the host never has.)
+        assert "evolve_lite_entity_io" in sys.modules
 
     def test_backend_source_does_not_reimplement_the_format(self):
         source = (_HERMES_PLUGIN_ROOT / "backend.py").read_text()

@@ -75,7 +75,7 @@ $HERMES_HOME/evolve/
     <session_id>.jsonl
 ```
 
-Each entity is a markdown file with lightweight YAML frontmatter, the same format as every other Evolve integration. That format is not re-implemented here: the bundle ships the shared `entity_io.py` at `lib/evolve-lite/entity_io.py` and `backend.py` imports it, so there is one source of truth across integrations. It is loaded by explicit path rather than by prepending `lib/evolve-lite/` to `sys.path`, since that directory also holds common names like `config.py`, and shadowing those inside a long-lived host process would be a nasty surprise.
+Each entity is a markdown file with lightweight YAML frontmatter, the same format as every other Evolve integration. That format is not re-implemented here: the bundle ships the shared `entity_io.py` at `lib/evolve-lite/entity_io.py` and `backend.py` imports it, so there is one source of truth across integrations. It is loaded by explicit path and registered under a namespaced module key rather than by prepending `lib/evolve-lite/` to `sys.path` — the provider lives inside a long-lived host process, so it adds nothing importable that unrelated code could pick up by accident.
 
 `EVOLVE_DIR` moves the entity and trajectory store; `audit.log` stays under `$HERMES_HOME/evolve/` either way, since it records what one agent install recalled rather than what the store contains.
 

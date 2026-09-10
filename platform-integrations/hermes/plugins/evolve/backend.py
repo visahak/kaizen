@@ -43,9 +43,12 @@ def _load_bundled(module_name: str) -> Any:
     """Import a stdlib-only module out of the bundled evolve-lite lib.
 
     Loaded by explicit path rather than by prepending ``_LIB_DIR`` to
-    ``sys.path``: that directory also holds common names like ``config.py``,
-    and this runs inside a long-lived host process where shadowing those for
-    unrelated code would be a nasty surprise.
+    ``sys.path``, and registered under a namespaced ``evolve_lite_*`` key: this
+    runs inside a long-lived host process, so the bundle must add nothing to the
+    import namespace that unrelated code could pick up by accident. A bare
+    ``entity_io`` is generic enough to collide, and the other prompt-driven
+    integrations do put this directory on ``sys.path`` — where it captures every
+    module name in it, ``config`` included.
     """
     path = _LIB_DIR / f"{module_name}.py"
     spec = importlib.util.spec_from_file_location(f"evolve_lite_{module_name}", path)
