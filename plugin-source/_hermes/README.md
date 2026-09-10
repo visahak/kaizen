@@ -1,71 +1,73 @@
-# Evolve memory provider (Phase 0 -- lite backend)
+# Evolve Lite for Hermes
 
-[ALTK-Evolve](https://github.com/AgentToolkit/altk-evolve) integration for
-hermes-agent, wired in through the `MemoryProvider` ABC
-(`agent/memory_provider.py`). Learns structured, single-rule task
-**guidelines** from session trajectories and recalls the relevant ones
-before each turn -- a middle tier between the char-capped built-in memory
-snapshot (`MEMORY.md`/`USER.md`) and name-triggered skills.
+A Hermes memory provider that helps Hermes learn from conversations by automatically extracting and applying guidelines.
 
-User-facing docs (install, config, storage layout, limitations):
-<https://agenttoolkit.github.io/altk-evolve/integrations/hermes/>.
+⭐ Star the repo: https://github.com/AgentToolkit/altk-evolve
 
-## Lite vs. server mode
+## Features
 
-Phase 0 ships **lite mode only**: a filesystem backend, zero extra
-dependencies, no server process, no MCP client. Guideline generation runs
-in-plugin via `agent.plugin_llm.PluginLlm`, using the user's active model
-and auth -- no second API key.
+- Automatic recall through the `MemoryProvider` interface — relevant guidelines are injected before each turn, with no command to run
+- Automatic capture at session end, turning the session trajectory into reusable guidelines
+- Optional mid-session capture on a turn cadence, for long sessions that rarely end cleanly
+- `evolve_get_guidelines` tool to look up guidelines for a task on demand
+- `evolve_save_guideline` tool to record a lesson without waiting for session end
+- Recall provenance written to `audit.log` in the same format every other Evolve integration uses
 
-**Server mode is a Phase 1 stub.** Setting `EVOLVE_MODE=server` disables
-the provider (it logs a warning and returns inactive) rather than crashing,
-since the MCP-client backend (conflict resolution, semantic retrieval via
-pgvector/Milvus) is not implemented yet.
+## Installation
 
-| | Lite (Phase 0, default) | Server (Phase 1, not yet implemented) |
-|---|---|---|
-| Retrieval | case-insensitive term-overlap | semantic (with pgvector/Milvus) |
-| Conflict resolution on write | none (duplicates accumulate) | LLM-based, per write |
-| Infra | none | `evolve-mcp` server, own venv |
-| Guideline generation | in-plugin (`PluginLlm`) | server-side |
+Use the platform installer from the repo root:
 
-## How it works
-
-- **Recall**: `queue_prefetch()` runs `LiteBackend.get_guidelines()` on a
-  background thread after each turn; `prefetch()` returns the cached
-  result on the next turn, formatted as a numbered list under
-  `Guidelines learned from previous sessions (apply when relevant):`.
-  Output is passed through `agent.memory_manager.sanitize_context` before
-  injection (defense against fence-tag spoofing from stored content).
-- **Capture**: at session end (`on_session_end`), if the session had at
-  least `min_turns` user turns and `agent_context == "primary"`, the
-  conversation is converted via `trajectory_adapter.to_openai_trajectory`,
-  appended to `trajectories/<session_id>.jsonl`, and passed to
-  `guideline_gen.generate_guidelines()` -- a single structured LLM call
-  (`PluginLlm.complete_structured`) that ports the capture criteria and
-  exclusion lists from evolve-lite's `learn` skill. Each returned
-  guideline is saved as a markdown entity. Optional
-  `capture_every_n_turns` triggers the same capture mid-session, for
-  long-lived sessions that rarely hit a clean end.
-- **Non-primary contexts** (`subagent`, `cron`, `flush`) get recall but
-  never write -- forks and background jobs must not pollute the
-  namespace.
-- **Provenance**: every prefetch that returns entries appends
-  `{event, session_id, entities, ts}` as a JSON line to
-  `$HERMES_HOME/evolve/audit.log` -- the same schema evolve-lite's
-  `audit_recall.py` reads. This is free in Phase 0 because the
-  provider is the injector; judging whether a guideline actually changed
-  the outcome is a later, LLM-analysis pass (Phase 2).
-- **Tools**: `evolve_get_guidelines(task)` for explicit on-demand recall,
-  `evolve_save_guideline(content, trigger, rationale)` for explicit
-  capture. Gated by `expose_tools` (default on).
-
-## Storage layout
-
+```bash
+platform-integrations/install.sh install --platform hermes
 ```
+
+That installs `$HERMES_HOME/plugins/evolve/` (default `~/.hermes/plugins/evolve/`). Unlike the Bob and Claude installs this is **global** — there is nothing per-repo, and `--dir` is ignored. Nothing is pip-installed; the bundle is stdlib-only.
+
+Then enable it:
+
+```bash
+hermes config set memory.provider evolve
+```
+
+Or run `hermes memory setup` and pick `evolve` — the provider publishes a config schema, so the wizard walks through the settings below.
+
+Note that Hermes resolves memory-provider name collisions **bundled first**. If your hermes-agent checkout ships its own `plugins/memory/evolve/`, that copy shadows this one and changes here will appear to do nothing.
+
+## How It Works
+
+Both halves of the loop run from `MemoryProvider` callbacks, not from anything the user types.
+
+**Recall.** `queue_prefetch()` retrieves guidelines on a background thread after each turn; `prefetch()` returns the cached result on the next turn, formatted as a numbered list under `Guidelines learned from previous sessions (apply when relevant):`. Retrieval is case-insensitive term overlap between the user's message and each guideline's trigger and content — lexical, not semantic. The formatted block is passed through `agent.memory_manager.sanitize_context` before injection, so stored content cannot forge a context boundary.
+
+**Capture.** At session end, if the session had at least `min_turns` user turns and `agent_context == "primary"`, the conversation is converted by `trajectory_adapter.to_openai_trajectory` (system prompts dropped, tool calls inlined, previously-injected guidelines stripped so Evolve cannot re-learn its own output), appended to `trajectories/<session_id>.jsonl`, and passed to `guideline_gen.generate_guidelines()`. That is a single structured LLM call through `agent.plugin_llm.PluginLlm`, applying the same capture criteria as evolve-lite's `learn` skill, and it runs on the model and credentials Hermes is already configured with — no second API key. Each guideline that comes back is saved as a markdown entity.
+
+Capture never breaks a session: every failure mode — no LLM available, a malformed response, an unwritable store — ends in zero guidelines rather than an error.
+
+Two details worth knowing:
+
+- **Only primary sessions write.** `subagent`, `cron`, and `flush` contexts get recall but never capture, so background work cannot pollute the store.
+- **Session resets capture too.** `/new` ends a session without an explicit session-end, so the buffered transcript is captured under the session id that just finished.
+
+## Tools
+
+Automatic recall covers the common case; these two are for when the model wants to act deliberately. Both are on by default and can be turned off with `EVOLVE_EXPOSE_TOOLS`.
+
+### `evolve_get_guidelines(task)`
+
+Look up stored guidelines for a task other than the current one.
+
+### `evolve_save_guideline(content, trigger, rationale)`
+
+Record a lesson immediately, without waiting for session end.
+
+## Storage
+
+Entities, trajectories, and recall provenance are stored globally under:
+
+```text
 $HERMES_HOME/evolve/
-  config.json              # optional, see below
-  audit.log                # recall provenance (JSON lines)
+  config.json              # optional
+  audit.log                # recall provenance, one JSON object per line
   entities/
     guideline/
       use-make-check-for-tests.md
@@ -73,64 +75,46 @@ $HERMES_HOME/evolve/
     <session_id>.jsonl
 ```
 
-Entity files are markdown with YAML frontmatter (`type`, `trigger`,
-`trajectory`, `owner`, `source`, `native_path`, `visibility`,
-`published_at` -- only non-empty keys are written), body = guideline
-content, optional `## Rationale` section.
+Each entity is a markdown file with lightweight YAML frontmatter, the same format as every other Evolve integration. That format is not re-implemented here: the bundle ships the shared `entity_io.py` at `lib/evolve-lite/entity_io.py` and `backend.py` imports it, so there is one source of truth across integrations. It is loaded by explicit path rather than by prepending `lib/evolve-lite/` to `sys.path`, since that directory also holds common names like `config.py`, and shadowing those inside a long-lived host process would be a nasty surprise.
 
-That format is not re-implemented here: this bundle ships evolve-lite's
-shared `entity_io.py` at `lib/evolve-lite/entity_io.py` and `backend.py`
-imports it, so there is one source of truth across every Evolve
-integration. It costs no pip dependency -- the module is stdlib-only and
-travels with the plugin. It is loaded by explicit path rather than by
-prepending `lib/evolve-lite/` to `sys.path`, since that directory also
-holds common names like `config.py` and shadowing those inside a
-long-lived host process would be a nasty surprise.
+`EVOLVE_DIR` moves the entity and trajectory store; `audit.log` stays under `$HERMES_HOME/evolve/` either way, since it records what one agent install recalled rather than what the store contains.
 
-## Config
+## Environment Variables
 
-Env vars take precedence; unset ones fall back to
-`$HERMES_HOME/evolve/config.json`.
+Env vars take precedence; unset ones fall back to the matching key in `$HERMES_HOME/evolve/config.json`.
 
-| Env var | config.json key | Default | Meaning |
-|---|---|---|---|
-| `EVOLVE_MODE` | `mode` | `lite` | `lite` or `server` (Phase 1 stub) |
-| `EVOLVE_DIR` | `dir` | `$HERMES_HOME/evolve` | Storage root override |
-| `EVOLVE_PREFETCH_LIMIT` | `prefetch_limit` | `5` | Max guidelines recalled per turn |
-| `EVOLVE_CAPTURE_EVERY_N_TURNS` | `capture_every_n_turns` | `0` (off) | Periodic mid-session capture cadence |
-| `EVOLVE_MIN_TURNS` | `min_turns` | `2` | Minimum user turns before session-end capture fires |
-| `EVOLVE_EXPOSE_TOOLS` | `expose_tools` | `true` | Expose the `evolve_*` tools to the model |
+- `EVOLVE_DIR` (`dir`): Override the default `$HERMES_HOME/evolve` storage root for entities and trajectories.
+- `EVOLVE_PREFETCH_LIMIT` (`prefetch_limit`): Max guidelines injected per turn. Default `5`.
+- `EVOLVE_MIN_TURNS` (`min_turns`): Minimum user turns before session-end capture fires. Default `2`.
+- `EVOLVE_CAPTURE_EVERY_N_TURNS` (`capture_every_n_turns`): Also capture every N turns, for long sessions that never end cleanly. Default `0` (off).
+- `EVOLVE_EXPOSE_TOOLS` (`expose_tools`): Expose the two `evolve_*` tools to the model. Default `true`.
 
-## Enable it
+## Verification
 
-```
-hermes config set memory.provider evolve
+After installation, verify that:
+
+- `$HERMES_HOME/plugins/evolve/` exists
+- `hermes config get memory.provider` returns `evolve`
+- `$HERMES_HOME/evolve/entities/guideline/` fills up after a couple of sessions end
+
+You can also run:
+
+```bash
+platform-integrations/install.sh status
 ```
 
-(Or run `hermes memory setup` and pick `evolve` -- `get_config_schema()`
-walks through the fields above.)
+## Plugin Structure
 
-## Division of labor (vs. skills, vs. built-in memory)
+```text
+evolve/
+├── plugin.yaml
+├── __init__.py                  # the MemoryProvider subclass Hermes loads
+├── backend.py                   # filesystem store: retrieval and writes
+├── guideline_gen.py             # the single structured LLM call
+├── trajectory_adapter.py        # Hermes messages -> OpenAI-shaped trajectory
+├── README.md
+└── lib/evolve-lite/             # shared library, copied in at build time
+```
 
-- **Evolve guidelines**: fine-grained, per-task-class rules and
-  error-recovery steps -- single actionable statements, not multi-step
-  docs.
-- **Skills**: class-level how-to documentation with support files
-  (scripts, references) for multi-step workflows.
-- **Built-in memory (`MEMORY.md`/`USER.md`)**: user/persona/environment
-  facts, not task procedure.
-
-Phase 0 has no cross-store reconciliation -- a lesson can end up captured
-as both a guideline and a skill/memory entry. Phase 1.5 (a routing-rubric
-prompt change to `agent/background_review.py`, out of scope here) is the
-planned mitigation.
-
-## Known Phase 0 limitations
-
-- No conflict resolution: duplicate/near-duplicate guidelines accumulate
-  over time.
-- Retrieval is lexical term-overlap, not semantic. That's the honest
-  baseline, not an oversight: semantic retrieval needs a vector backend
-  (pgvector/Milvus), which is server-only.
-- No lite-to-server entity migration path yet; upgrading means starting
-  fresh or writing an import script later.
+For install, configuration, and troubleshooting docs, see
+<https://agenttoolkit.github.io/altk-evolve/integrations/hermes/>.
